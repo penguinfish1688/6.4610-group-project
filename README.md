@@ -105,8 +105,8 @@ For vision-only checkpoint extraction and a local encoder example, see
 Edit it directly and commit changes in this repository. It is not a separate
 nested Git repository. The imported commit is recorded in
 [UPSTREAM.json](model/backbone/UPSTREAM.json); the local `d2-upstream` remote points
-to the original repository. It is a reference remote, not this project's publishing
-destination. No D2-Omni GitHub remote has been created.
+to the original repository. This project's `origin` remote is
+[penguinfish1688/6.4610-group-project](https://github.com/penguinfish1688/6.4610-group-project).
 
 D2's optional benchmark dependencies remain pinned submodules, registered in
 the root `.gitmodules`. Fetch them only when needed, from this directory:
