@@ -1,0 +1,7 @@
+[submodule "benchmarks/fdb/official"]
+path = model/backbone/benchmarks/fdb/official
+url = https://github.com/DanielLin94144/Full-Duplex-Bench.git
+
+[submodule "benchmarks/vb/official"]
+path = model/backbone/benchmarks/vb/official
+url = https://github.com/MatthewCYM/VoiceBench.git

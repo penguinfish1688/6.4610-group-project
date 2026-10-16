@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/huggingface/transformers",
+  "revision": "v5.13.0",
+  "source": "src/transformers/models/qwen3_omni_moe/modeling_qwen3_omni_moe.py",
+  "source_sha256": "a55c7951f8ad316ab3abeadb09c51bc577ae3ffb673b40ebb5f17abac1348340",
+  "license": "Apache-2.0",
+  "local_changes": [
+    "Extract vision classes, attention helpers, and the DeepStack output dataclass.",
+    "Use absolute Transformers imports and retain its pinned vision configuration class.",
+    "Replace the shared pretrained base with a vision-only base and vision rotary initialization.",
+    "Remove documentation generation decorators and the unused text-router output recorder.",
+    "Vision forward computation and checkpoint parameter names are unchanged."
+  ]
+}

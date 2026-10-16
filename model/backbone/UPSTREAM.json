@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/penguinfish1688/D2-dialogue-to-duplex",
+  "commit": "11032ffcea9989f1a76bd022a6be88abf484295a",
+  "imported_on": "2026-10-16",
+  "layout": "Vendored source, tracked by D2-Omni; benchmark submodules registered at the project root.",
+  "local_changes": [
+    "Added this provenance file."
+  ]
+}
