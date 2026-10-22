@@ -145,6 +145,30 @@ next step. Distinguish implemented behavior from planned experiments.
   syntax checks passed. Early speech-code EOS during InstructS2S inference
   remains an open issue pending training and another inference check.
 
+## 2026-10-22 — Codex, step-2,000 inference
+
+- Preserved the step-2,000 four-rank manifest and created a fixed checkpoint view
+  for inference, so continued training cannot change the evaluated weights.
+  Training job 96812 continues with speech EOS CE weight 5.
+- Job 96817 completed successfully on one A6000 (sls-a6-4), taking 22m27s
+  including slow shared-storage startup. Evaluated the same three development
+  examples as step 1,000, using each task's original training prompt, real AVQA
+  video, InstructS2S placeholder features, and generated self-audio feedback.
+- InstructS2S text is unchanged. Active speech increased from 1.92 to 6.24 seconds;
+  independent ASR now captures the introduction and all three tips: eat a balanced
+  diet, exercise regularly, and get enough sleep. Last text is at 17.84 seconds;
+  speech continues through 22.40 seconds, and the Talker closes at 22.48 seconds.
+  The introduction-only cutoff is resolved on this example; broader speech
+  completion has not been evaluated.
+- AVQA answers are unchanged: `C. hail` matches its reference; `C. street` does
+  not match `A. On the road` (one of two correct). No official test evaluation.
+- Verified identical input WAV bytes and system-prompt IDs against step 1,000.
+  Outputs, speech clips, ASR, frame traces, checkpoint provenance, and comparison
+  are under `runs/inference-step2000/`. The original outputs remain intact.
+- Fixed the review page's checkpoint heading to use result metadata, with a
+  guard against mixing checkpoints. Validated the generated step-2,000 page,
+  all three audio outputs, and the pinned checkpoint; Ruff passed.
+
 ## Template
 
 ```text

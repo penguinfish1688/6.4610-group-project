@@ -16,7 +16,9 @@ The vision encoder remains frozen; this recipe uses resizing without distillatio
 Initial free-running inference at the 20×-EOS checkpoint completed three
 development examples: one of two AVQA answers matched its reference, and
 InstructS2S produced sensible full text but speech ended after the introduction.
-The speech cutoff remains unresolved; the EOS ×5 continuation needs evaluation.
+At update 2,000, the same InstructS2S example speaks all three tips, confirmed
+by ASR, with 6.24 seconds of active speech versus 1.92 seconds previously.
+Both AVQA answers are unchanged. Broader speech completion still needs evaluation.
 
 ## Repository layout
 
@@ -49,7 +51,7 @@ or an external scratch/pool directory.
 4. Measured latency and comparable baseline results.
 
 The current implementation supports audiovisual training and short inference
-examples. Full speech completion, visual ablations, official test evaluation,
+examples. Broader speech completion checks, visual ablations, official test evaluation,
 and the live demo remain to be completed. GRPO is a later stretch goal.
 
 ## Approach

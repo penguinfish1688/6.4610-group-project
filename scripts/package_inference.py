@@ -15,8 +15,13 @@ def package(root):
         else {}
     )
     cards = []
+    checkpoint = None
     for path in sorted(root.glob("*/result.json")):
         result = json.loads(path.read_text())
+        if checkpoint is None:
+            checkpoint = result["checkpoint_update"]
+        elif checkpoint != result["checkpoint_update"]:
+            raise ValueError("Inference examples come from different checkpoints")
         folder, name = path.parent, result["name"]
         active = [e["sequence"] for e in result["events"] if e["metadata"]["emit_audio"]]
         speech = "output.wav"
@@ -72,7 +77,7 @@ def package(root):
         "<style>body{font:18px system-ui;max-width:960px;margin:32px auto;padding:16px;line-height:1.5}"
         "article{border-top:1px solid #ccc;padding:20px 0}pre{white-space:pre-wrap}"
         "audio,video{max-width:100%}summary{cursor:pointer}</style>"
-        "<h1>D2-Omni: checkpoint 1,000</h1><p>Free-running development examples, using each "
+        f"<h1>D2-Omni: checkpoint {checkpoint:,}</h1><p>Free-running development examples, using each "
         "task's exact training prompt. AVQA receives real video and audio; InstructS2S receives "
         "audio and an encoded placeholder image. Text, speech, and self-audio feedback are generated.</p>"
         "<p>These are qualitative examples. Speech recognition is an independent automatic spot check.</p>"

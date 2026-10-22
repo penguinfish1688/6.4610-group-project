@@ -44,8 +44,10 @@ feedback. At update 1,000, one of two development AVQA examples matched its
 reference. InstructS2S generated a coherent full text reply but only spoke its
 introduction. The loop continued after text completion; the Talker closed via
 speech-code EOS without a new Thinker INTERRUPT. Target placement and native
-EOS masking passed a full prepared-corpus audit. The EOS ×5 continuation is an
-experiment to address this issue, not a verified fix.
+EOS masking passed a full prepared-corpus audit. At update 2,000, the same
+InstructS2S example speaks all three tips, confirmed by independent ASR; active
+speech increases from 1.92 to 6.24 seconds. AVQA answers are unchanged. Broader
+speech completion remains to be evaluated.
 
 The initial corpus uses 63 InstructS2S training conversations and 192 AVQA
 training clips, plus separate development media. It is an initial working
@@ -106,7 +108,7 @@ must preserve this causal availability constraint.
 
 ## Remaining evaluation and runtime work
 
-- Verify complete spoken answers after the EOS-weight continuation.
+- Check spoken-answer completion on more examples after the EOS-weight continuation.
 - Measure the effect of changing or removing AVQA video, and evaluate the
   official test split only after selecting the training recipe.
 - Recheck audio conversation quality, interruptions, and longer free-running
