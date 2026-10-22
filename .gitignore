@@ -40,3 +40,7 @@ slurm-*.err
 *.wav
 *.flac
 *.mp3
+
+# Local SLS mount helper and mountpoint.
+/mount.sh
+/sls_mount/
