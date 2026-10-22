@@ -116,10 +116,15 @@ python -m scripts.package_inference
 `scripts/sls_python.sh` uses the shared read-only CUDA 12.6 runtime inside its
 container. Checkpoints resume automatically from the run's `latest.json`.
 The total step limit can be increased on resume; validation and checkpoint
-intervals and the explicit speech-code EOS loss weight can also change. Other
+intervals, checkpoint retention, and the explicit speech-code EOS loss weight
+can also change. Other
 training settings and source selection must match the checkpoint. The longer
 run validates every 100 updates, reports each source separately, and saves every 250,
-at shutdown, and at its final update. It retains D2's native learning-rate
+at shutdown, and at its final update. Only the latest complete checkpoint is
+retained; older weights are removed after all new rank shards and their manifest
+are published. The step-1,000 and step-2,000 weights were pruned at the user's
+request after the personal storage quota was exhausted; their saved inference
+audio and reports remain available. The run retains D2's native learning-rate
 schedule, which reaches its minimum rates at update 2,000.
 
 The native audio clock is 80 ms; this does **not** guarantee 80-ms response

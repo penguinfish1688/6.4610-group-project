@@ -11,6 +11,8 @@ from torch.distributed.device_mesh import init_device_mesh
 from torch.distributed.fsdp import fully_shard, MixedPrecisionPolicy
 from torch.distributed.tensor import DTensor
 
+from scripts.checkpoint_retention import checkpoint_retention_policy, prune_checkpoints
+
 
 def local_tensor(value):
     return value.to_local() if isinstance(value, DTensor) else value
@@ -123,9 +125,18 @@ def _cpu(value):
     return value
 
 
+def _sync_directory(path):
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def save_checkpoint(output, named, optimizer, payload):
     """Publish an atomic manifest only after every rank's shard is durable."""
     output = Path(output)
+    retention = checkpoint_retention_policy(payload.get("config", {}))
     rank = dist.get_rank()
     generation = f"step-{payload['step']:08d}-{os.environ.get('SLURM_JOB_ID', 'local')}"
     folder = output / generation
@@ -148,6 +159,7 @@ def save_checkpoint(output, named, optimizer, payload):
         os.fsync(stream.fileno())
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
     temporary.replace(path)
+    _sync_directory(folder)
     receipt = dict(path=str(path.relative_to(output)), sha256=digest, bytes=path.stat().st_size)
     receipts = [None] * dist.get_world_size()
     dist.all_gather_object(receipts, receipt)
@@ -155,8 +167,25 @@ def save_checkpoint(output, named, optimizer, payload):
     if rank == 0:
         pending = output / "latest.partial"
         pending.write_text(json.dumps(manifest, indent=2) + "\n")
+        with pending.open("rb") as stream:
+            os.fsync(stream.fileno())
         pending.replace(output / "latest.json")
+        _sync_directory(output)
     dist.barrier()
+    if retention == "latest_only":
+        cleanup = [None]
+        if rank == 0:
+            try:
+                report = prune_checkpoints(output, manifest)
+                pending = output / "retention-latest.partial"
+                pending.write_text(json.dumps(report, indent=2) + "\n")
+                pending.replace(output / "retention-latest.json")
+                cleanup[0] = dict(ok=True)
+            except Exception as error:
+                cleanup[0] = dict(ok=False, error=f"{type(error).__name__}: {error}")
+        dist.broadcast_object_list(cleanup, src=0)
+        if not cleanup[0]["ok"]:
+            raise RuntimeError(f"Checkpoint saved but retention failed: {cleanup[0]['error']}")
     return manifest
 
 
@@ -181,9 +210,13 @@ def restore_checkpoint(payload, named, optimizer):
             local_tensor(parameter).copy_(payload["weights"][name])
             state = {}
             for key, value in payload["optimizer_states"][name].items():
-                if torch.is_tensor(value) and key != "step":
-                    value = value.to(parameter.device)
-                    if isinstance(parameter, DTensor):
+                if torch.is_tensor(value):
+                    # Loaded optimizer tensors can alias a memory-mapped shard.
+                    # CPU step counters must also release that file for NFS pruning.
+                    value = (
+                        value.clone() if key == "step" else value.to(parameter.device, copy=True)
+                    )
+                    if key != "step" and isinstance(parameter, DTensor):
                         value = DTensor.from_local(
                             value,
                             parameter.device_mesh,

@@ -10,6 +10,9 @@
   chunks and 90 seconds of detached, frozen KV memory, carrying audio encoder,
   delayed-self, text/control and Talker state across chunks of each conversation.
   Save and restore that recurrence with model/optimizer checkpoints.
+- Retain only the latest complete training checkpoint. Publish its verified
+  rank-shard manifest before pruning superseded generations; synchronize all
+  ranks and report cleanup failures to every rank.
 - Use only InstructS2S and AVQA. InstructS2S receives a fixed seeded random RGB
   image encoded by the frozen native vision tower. AVQA receives its real video.
 - Use `d2.prompts.task_system_prompt_token_ids`: `conversation` for InstructS2S

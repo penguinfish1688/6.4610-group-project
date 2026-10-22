@@ -169,6 +169,39 @@ next step. Distinguish implemented behavior from planned experiments.
   guard against mixing checkpoints. Validated the generated step-2,000 page,
   all three audio outputs, and the pinned checkpoint; Ruff passed.
 
+## 2026-10-22 — Codex, personal-quota cleanup and latest-only checkpoints
+
+- Found `Disk quota exceeded` while attempting a small run-metadata write.
+  The personal scratch quota is 1 TB. Job 96812 had stopped after update 2,312;
+  its latest durable checkpoint was update 2,250. Logs contained no traceback.
+- Inventoried 47 D2-Omni checkpoint generations using 443.7 GB. At the user's
+  request, verified all four latest-shard SHA-256 digests, kept step 2,250, and
+  deleted the 46 older generations, reclaiming 434.1 GB. D2-Omni usage fell from
+  546.9 to 112.8 GB. The deletion receipt is in
+  `runs/d2-omni-xl-80ms/cleanup-latest-only-20261022.json`.
+- Shared LSKV data, model releases, video, and prepared features were untouched.
+  Step-1,000 and step-2,000 model weights were removed as requested; their saved
+  inference audio, video links, text, ASR, reports, and provenance remain intact.
+- Added `checkpoint_retention: latest_only` as a resume-compatible run control.
+  Saves fsync all rank files and the manifest, publish the manifest atomically,
+  synchronize ranks, then remove superseded generations. Incomplete publications
+  cannot authorize deletion; unrelated directories and symlinks are preserved.
+- Clone restored optimizer tensors, including CPU step counters, and release the
+  temporary loaded payload so memory-mapped checkpoint files do not remain open
+  during NFS cleanup. Added independent failure tracebacks and unbuffered logging.
+- Validation: full suite 49 tests and four subtests passed; after the final
+  restore/durability changes, 23 focused tests passed, including a two-rank
+  memory-mapped restore/save/prune cycle, optimizer parity, and resume guards.
+  Directory fsync was also checked on the actual scratch NFS filesystem.
+- Submitted recovery job 96843 on sls-a6-5: four A6000s, one day, 10,000 total
+  updates, speech EOS CE weight 5. Reloaded it before any training updates to
+  include the NFS restore fix. The saved recipe differs only in retention policy.
+- Verified restoration at update 2,250 and successful new optimizer updates.
+  Full chunks settled near eight seconds; padded tails retain the slower native
+  mask path. Initial fixed development loss is 0.6855 (text 0.1945, codec 0.4910).
+  All four live workers have zero mappings or open handles to the loaded training
+  checkpoint, recorded in `resume-mmap-release-96843.json`.
+
 ## Template
 
 ```text

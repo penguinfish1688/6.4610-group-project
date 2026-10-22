@@ -12,6 +12,7 @@ from pathlib import Path
 import random
 import signal
 import time
+import traceback
 
 import numpy as np
 import torch
@@ -27,15 +28,24 @@ from scripts.distributed import (
 )
 from scripts.xl_data import chunk_tensors, move_state
 from scripts.loss_config import configure_loss, speech_eos_weight
+from scripts.checkpoint_retention import checkpoint_retention_policy
 
 
 def validate_resume_config(saved, current, step):
     """Allow run controls and an explicit speech-EOS loss override on resume."""
     controls = {"max_updates", "probe_every", "checkpoint_every"}
-    saved = dict(saved, talker_codec_eos_weight=speech_eos_weight(saved))
-    current = dict(current, talker_codec_eos_weight=speech_eos_weight(current))
+    saved = dict(
+        saved,
+        talker_codec_eos_weight=speech_eos_weight(saved),
+        checkpoint_retention=checkpoint_retention_policy(saved),
+    )
+    current = dict(
+        current,
+        talker_codec_eos_weight=speech_eos_weight(current),
+        checkpoint_retention=checkpoint_retention_policy(current),
+    )
     changed = {key for key in saved.keys() | current.keys() if saved.get(key) != current.get(key)}
-    unsupported = changed - controls - {"talker_codec_eos_weight"}
+    unsupported = changed - controls - {"talker_codec_eos_weight", "checkpoint_retention"}
     if unsupported:
         raise ValueError(f"Resume training configuration changed: {sorted(unsupported)}")
     if current["max_updates"] < max(step, saved["max_updates"]):
@@ -224,6 +234,8 @@ def run(cfg):
         history, probe_history = saved["history"], saved["probe_history"]
         torch.set_rng_state(saved["rng_torch"])
         torch.cuda.set_rng_state(saved["rng_cuda"], device)
+        del saved
+        gc.collect()
         log("resumed", update=step, cohort=cohort_index, chunk=chunk_index)
 
     @torch.no_grad()
@@ -395,6 +407,8 @@ def run(cfg):
             saved = read_checkpoint(output)
             restore_checkpoint(saved, named, optimizer)
             state = move_state(saved["xl_state"], device)
+            del saved
+            gc.collect()
             after = probe()
             if abs(before["loss"] - after["loss"]) > 1e-5:
                 raise RuntimeError("Checkpoint reload changed fixed validation loss")
@@ -409,4 +423,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/train-sls.json", type=Path)
     args = parser.parse_args()
-    run(json.loads(args.config.read_text()))
+    config = json.loads(args.config.read_text())
+    try:
+        run(config)
+    except BaseException:
+        # Keep an independent traceback if torchrun/Slurm stderr is interrupted.
+        try:
+            failure = Path(config["output"]) / (
+                f"crash-{os.environ.get('SLURM_JOB_ID', 'local')}-"
+                f"rank{os.environ.get('RANK', 'unknown')}.txt"
+            )
+            failure.write_text(traceback.format_exc())
+        except OSError:
+            pass
+        raise

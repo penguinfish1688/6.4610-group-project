@@ -16,6 +16,7 @@ cd /data/sls/scratch/chang168/D2-Omni
 export D2_OMNI_USE_GPU=1
 export NCCL_SOCKET_NTHREADS=2 NCCL_NSOCKS_PERTHREAD=2
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PYTHONUNBUFFERED=1 PYTHONFAULTHANDLER=1
 srun --kill-on-bad-exit=1 bash scripts/sls_python.sh -m torch.distributed.run \
     --standalone --nnodes=1 --nproc-per-node=4 --module scripts.train_omni \
     --config configs/train-sls.json

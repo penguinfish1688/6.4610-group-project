@@ -38,6 +38,18 @@ def test_resume_still_rejects_other_loss_changes(config):
         validate_resume_config(config, dict(config, assistant_end_weight=5.0), step=1000)
 
 
+def test_resume_allows_latest_only_checkpoint_retention(config):
+    current = dict(config, checkpoint_retention="latest_only")
+    changes = validate_resume_config(config, current, step=1000)
+    assert changes == dict(checkpoint_retention=dict(previous="all", current="latest_only"))
+    assert validate_resume_config(current, current, step=1000) == {}
+
+
+def test_resume_rejects_unknown_checkpoint_retention(config):
+    with pytest.raises(ValueError, match="checkpoint_retention"):
+        validate_resume_config(config, dict(config, checkpoint_retention="invalid"), step=1000)
+
+
 @pytest.mark.parametrize(
     "change",
     [

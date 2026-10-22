@@ -25,6 +25,7 @@
   "probe_every": 100,
   "probe_chunks": 2,
   "checkpoint_every": 250,
+  "checkpoint_retention": "latest_only",
   "seed": 1337,
   "cpu_threads_per_rank": 2,
   "source_pattern": ["instructs2s_dynamic", "avqa", "avqa", "avqa", "avqa", "avqa", "avqa", "avqa", "avqa", "avqa"],
