@@ -1,13 +1,15 @@
 {
-  "status": "design_only_not_a_training_entrypoint",
+  "status": "experimental_see_train_sls_config",
+  "run_config": "configs/train-sls.json",
   "initial_checkpoint": "penguinfish1688/dialogue-to-duplex",
   "checkpoint_revision": null,
   "interval_ms": 80,
   "vision_encoder": "checkpoints/vision_encoder",
-  "freeze_speech_decoder_initially": true,
-  "parameter_updates": "lora_or_selective_to_be_decided",
-  "audio_only_mixing_ratio": null,
+  "parameter_updates": "native_d2_sft_groups_plus_vision_stream_and_padding_embeddings",
+  "sources": ["instructs2s_dynamic", "avqa"],
+  "instructs2s_placeholder_mixing_ratio": 0.1,
+  "prompts": "native_d2_task_system_prompt_token_ids",
   "manifest": "data/processed/stage2/train.jsonl",
-  "first_experiment": "overfit_one_streaming_video_qa_example",
+  "first_experiment": "native_d2_xl_with_real_avqa_and_instructs2s_placeholder",
   "output_dir": "outputs/stage2"
 }

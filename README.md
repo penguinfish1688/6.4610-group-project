@@ -5,24 +5,33 @@ with streaming vision so an assistant can **see, listen, and speak simultaneousl
 We reuse Qwen3-Omni's pretrained visual understanding and D2's full-duplex speech
 pipeline instead of training an omni model from scratch.
 
-**Current status:** repository initialized, D2 source imported, and an editable
-Qwen3-Omni vision encoder included. Streaming vision, distillation, audiovisual
-training, and the webcam demo are research work still to implement.
+**Current status:** four-position audiovisual training runs on SLS with the
+Qwen D2 80-ms checkpoint, real AVQA video, and InstructS2S placeholder images.
+The initial run completed 1,000 updates, with fixed development loss changing
+from 2.104 to 0.734 and a median step time of 8.08 seconds on four A6000 GPUs.
+The continuation targets 10,000 total updates and reduces speech-code EOS CE
+weight from 20 to 5, restoring model, optimizer, scheduler, RNG, and XL state.
+The vision encoder remains frozen; this recipe uses resizing without distillation.
+
+Initial free-running inference at the 20×-EOS checkpoint completed three
+development examples: one of two AVQA answers matched its reference, and
+InstructS2S produced sensible full text but speech ended after the introduction.
+The speech cutoff remains unresolved; the EOS ×5 continuation needs evaluation.
 
 ## Repository layout
 
 ```text
 data/
-  stage1/                 Video preparation for vision distillation (CK)
+  stage1/                 Native vision resizing and feature preparation (CK)
   stage2/                 Synchronized audiovisual conversation preparation
   examples/               Small illustrative manifests, without media
 model/
   backbone/               D2 source, tracked directly in this repository
     qwen3-omni-D2/         Main backbone to modify for vision integration
   vision_encoder/         Editable Qwen3-Omni vision tower and provenance
-configs/                  Initial experiment design settings
-scripts/                  Checkpoint preparation utilities
-tests/                    Small CPU checks for the extracted vision encoder
+configs/                  Vision settings and SLS training recipe
+scripts/                  Dataset preparation, XL training, checkpoint utilities
+tests/                    Vision, four-position layout and XL recurrence checks
 evaluation/               Benchmark protocol and planned evaluation work
 demo/                     Planned webcam/microphone/speech demo
 docs/                     Architecture, task ownership, and progress updates
@@ -39,25 +48,77 @@ or an external scratch/pool directory.
 3. A short working webcam conversation demo.
 4. Measured latency and comparable baseline results.
 
-Start with one streaming video-QA example as a Stage II smoke test before
-attempting longer conversations. GRPO is a stretch goal after the core system works.
+The current implementation supports audiovisual training and short inference
+examples. Full speech completion, visual ablations, official test evaluation,
+and the live demo remain to be completed. GRPO is a later stretch goal.
 
 ## Approach
 
-**Stage I — streaming vision and compression.** First profile the native visual
-tower on incremental frames. If its cost is acceptable, prioritize token
-compression and timeline alignment. Otherwise, distill a streaming student from
-the frozen native encoder. Candidate video sources include AVQA training videos,
-MSR-VTT, and ActivityNet Captions; QA labels are unnecessary for representation
-distillation. One vision token per 80-ms interval (12.5 tokens/s) is an initial
-budget to evaluate, not an established architecture or measured result.
+**Vision frontend.** Sample video at 1 fps and resize each independent image to
+96x128 pixels (height x width). The native 16-pixel patches and 2x2 spatial merger
+produce 12 tokens per image. Keep the encoder frozen and retain its DeepStack
+features. Distribute 24 visual tokens plus one visual padding slot over 25 native
+80-ms ticks. Distillation and a learned compressor are unnecessary for this first
+version.
 
-**Stage II — audiovisual full-duplex SFT.** Add a visual lane alongside user audio
-and delayed assistant audio. Build timestamped conversations from video QA,
-synthesize speech where needed, and include interruptions, overlap, and silence.
-Mix in audio-only D2 examples and ordinary AVQA training examples. Initialize
-from Qwen3-Omni-D2, initially freeze the speech decoder, and investigate selective
-updates or LoRA. Preserve causal access to media and D2's training/inference order.
+**Audiovisual full-duplex SFT.** Start from the Qwen D2 80-ms checkpoint and use
+the native D2 training groups, control signals, and separate conversation
+and AVQA system prompts, with an explicit speech EOS loss override. Train on
+InstructS2S with an encoded fixed random placeholder image and AVQA with real
+video aligned to its scene audio. These are
+the only two sources. Shared LSKV audio datasets are read-only; derived data and
+caches belong to D2-Omni. Use the official AVQA train/test split, including keeping
+`val_qa.json` out of training. See [the SLS run config](configs/train-sls.json).
+
+The current SLS recipe uses RMS +6-frame control placement, conversations of at
+least 720 seconds, and Transformer-XL training with 90-second chunks and
+90 seconds of detached KV memory. Frozen routed experts use D2's INT8 format;
+selected expert weights and the remaining decoder parameters are sharded across
+four A6000 GPUs. Full chunks use native lower-right causal FlashAttention;
+padded chunks retain the explicit D2 mask.
+
+The initial working corpus contains 63 InstructS2S training conversations and
+192 real-video AVQA training clips. Separate development conversations come
+from training-source media; official test media is excluded. The prepared data
+audit and exact source manifest are stored with each run under `runs/`.
+
+On SLS, submit and inspect the run with:
+
+```bash
+sbatch scripts/train_omni.sbatch
+python scripts/training_status.py
+```
+
+Training was stopped for inference after update 1,000, then submitted for
+continuation with 5× speech-code EOS weighting. Text RESPONSE/INTERRUPT weighting
+remains 20×. To run held-out examples with their original training prompts and
+generated self-audio feedback:
+
+```bash
+sbatch scripts/infer_omni.sbatch
+```
+
+The inference script restores all four checkpoint shards, keeps the waveform
+renderer, and runs two real-video AVQA examples plus one InstructS2S example
+with its encoded placeholder. Outputs include input/output WAVs, generated text,
+frame traces, and a local HTML comparison under `runs/inference-step1000/`.
+The default output path names the initial experiment; choose a new `--output`
+directory when evaluating later checkpoints to preserve those results.
+After inference, independently transcribe the speech and package short clips:
+
+```bash
+bash scripts/sls_python.sh -m scripts.transcribe_inference
+python -m scripts.package_inference
+```
+
+`scripts/sls_python.sh` uses the shared read-only CUDA 12.6 runtime inside its
+container. Checkpoints resume automatically from the run's `latest.json`.
+The total step limit can be increased on resume; validation and checkpoint
+intervals and the explicit speech-code EOS loss weight can also change. Other
+training settings and source selection must match the checkpoint. The longer
+run validates every 100 updates, reports each source separately, and saves every 250,
+at shutdown, and at its final update. It retains D2's native learning-rate
+schedule, which reaches its minimum rates at update 2,000.
 
 The native audio clock is 80 ms; this does **not** guarantee 80-ms response
 latency. Vision preprocessing, frame arrival, token count, model compute, and
@@ -76,8 +137,9 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -c model/backbone/qwen3-omni-D2/configs/requirements.txt -e './model/backbone[qwen]'
-python -m pip install -c model/backbone/qwen3-omni-D2/configs/requirements.txt -e .
-python -m unittest discover -s tests -v
+python -m pip install -c model/backbone/qwen3-omni-D2/configs/requirements.txt -e '.[data,dev]'
+python -m pytest -q tests
+python -m ruff check .
 ```
 
 The D2 runtime has additional GPU/driver and system dependency requirements; use
@@ -86,6 +148,12 @@ source of truth. Run model inference and training on an allocated ORCD GPU, with
 model/download caches on scratch or pool. Use `HF_HOME` to select the cache path.
 Confirm current ORCD partitions, GPU limits, and storage quotas for your account
 before planning runs; the project notes' quotas are planning assumptions.
+
+On the existing SLS installation, `bash scripts/sls_python.sh -m pytest -q tests`
+uses the shared read-only runtime. The wrapper and Slurm files contain the SLS
+paths and allocation settings; adapt those paths for another installation.
+Independent speech transcription additionally requires `sherpa_onnx` and the
+local ASR model paths configured in `scripts/transcribe_inference.py`.
 
 To try the existing **audio-only** D2 baseline on a suitable GPU allocation:
 
@@ -115,9 +183,10 @@ the root `.gitmodules`. Fetch them only when needed, from this directory:
 git submodule update --init --recursive
 ```
 
-The original D2 source is currently unchanged apart from its provenance file.
-Its loader removes `qwen.thinker.visual`; the [integration notes](docs/architecture.md)
-identify this and the additional changes needed for vision support.
+The D2 source now includes the optional fourth visual position, DeepStack
+injection, and matching cache accounting. The loader removes the original visual
+tower; training prepares features with the separately loaded frozen encoder.
+See the [integration notes](docs/architecture.md) for the current contract.
 
 ## Team
 

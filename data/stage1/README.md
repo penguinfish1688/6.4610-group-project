@@ -1,12 +1,16 @@
 # Stage I data — CK
 
-Prepare video-only training manifests and frame sampling/teacher feature tools.
-Candidate sources: AVQA training videos, MSR-VTT, ActivityNet Captions.
+The first version uses the frozen native vision encoder without distillation.
+Sample AVQA video at 1 fps and resize each image to 96x128 pixels to obtain
+12 merged tokens plus the matching DeepStack features. InstructS2S uses a
+fixed seeded random placeholder image encoded by the same tower.
 
-First deliverable: a small reproducible clip subset, timestamped frames, and a
-native-encoder profile. Then add feature caching and distillation batches after
-the teacher/student representation and token budget are agreed.
+`scripts/prepare_native_data.py` and `scripts/prepare_avqa.py` encode the images
+on the allocated GPU and store frozen feature banks. `scripts/xl_data.py` places
+them on each chunk's audio timeline while preserving the visual schedule across
+Transformer-XL boundaries. Feature caching is equivalent to re-encoding these
+fixed images because the visual encoder is frozen and runs in evaluation mode.
 
 Use the [draft clip record](../examples/stage1.jsonl). Record source provenance,
-split, preprocessing, and teacher revision next to cached features. Data acquisition
-and feature extraction have not been implemented yet.
+split, preprocessing, and encoder revision next to cached features. GPU training
+and latency validation are ongoing.

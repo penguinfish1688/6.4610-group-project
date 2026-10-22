@@ -1363,7 +1363,7 @@ class QwenDuplexModel(nn.Module):
                 )
             if transformer_xl_memory_frames is not None:
                 thinker_cache_tokens = int(transformer_xl_state.thinker_cache.get_seq_length())
-                expected_thinker_tokens = int(transformer_xl_memory_frames) * 3
+                expected_thinker_tokens = int(transformer_xl_memory_frames) * getattr(self, "thinker_tokens_per_frame", 3)
                 if thinker_cache_tokens != expected_thinker_tokens:
                     raise ValueError(
                         f"Bounded Thinker cache length does not match memory_frames: {thinker_cache_tokens} != {expected_thinker_tokens}"
@@ -1608,7 +1608,7 @@ class QwenDuplexModel(nn.Module):
         if transformer_xl_memory_frames is not None:
             transformer_xl_state.thinker_cache = _compact_transformer_cache(
                 transformer_xl_state.thinker_cache,
-                target_tokens=int(transformer_xl_memory_frames) * 3,
+                target_tokens=int(transformer_xl_memory_frames) * getattr(self, "thinker_tokens_per_frame", 3),
             )
             transformer_xl_state.talker_cache = _compact_transformer_cache(
                 transformer_xl_state.talker_cache,

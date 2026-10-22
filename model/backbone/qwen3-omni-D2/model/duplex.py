@@ -53,7 +53,7 @@ def _optimizer_group_name(name: str) -> str:
         return "talker_lora"
     if (
         name.startswith(("text_control_rows.", "audio_control_rows.", "stream_type_embedding."))
-        or name == "self_silence_embed"
+        or name in {"self_silence_embed", "vision_stream_embed", "vision_pad_embed"}
     ):
         return "control_and_stream_rows"
     if ".codec_embedding." in name:
@@ -68,6 +68,7 @@ def pack_macro_triplets(
     delayed_self_audio: torch.Tensor,
     text_inputs: torch.Tensor,
     frames_per_unit: int,
+    vision_inputs: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Pack ``env[k] | self[k] | text[k]`` for every macro unit."""
 
@@ -87,31 +88,31 @@ def pack_macro_triplets(
     validate_chunk_frames(frames, int(frames_per_unit))
     units = frames // int(frames_per_unit)
     shape = (batch, units, int(frames_per_unit), hidden)
-    return torch.cat(
-        (
-            environment_audio.reshape(shape),
-            delayed_self_audio.reshape(shape),
-            text_inputs.reshape(shape),
-        ),
-        dim=2,
-    ).reshape(batch, frames * 3, hidden)
+    streams = [environment_audio.reshape(shape), delayed_self_audio.reshape(shape)]
+    if vision_inputs is not None:
+        if vision_inputs.shape != environment_audio.shape:
+            raise ValueError("vision/audio embedding shapes differ")
+        streams.append(vision_inputs.reshape(shape))
+    streams.append(text_inputs.reshape(shape))
+    return torch.cat(streams, dim=2).reshape(batch, frames * len(streams), hidden)
 
 
 def select_macro_text_slots(
     hidden_states: torch.Tensor,
     frames_per_unit: int,
+    stream_count: int = 3,
 ) -> torch.Tensor:
     """Recover the ``k`` text readouts from every packed macro unit."""
 
     if hidden_states.ndim != 3:
         raise ValueError("hidden_states must be [batch,tokens,hidden]")
     batch, tokens, hidden = map(int, hidden_states.shape)
-    width = 3 * int(frames_per_unit)
+    width = stream_count * int(frames_per_unit)
     if tokens < 1 or tokens % width:
         raise ValueError(f"packed token length {tokens} must be a multiple of {width}")
     units = tokens // width
     return hidden_states.reshape(batch, units, width, hidden)[
-        :, :, 2 * int(frames_per_unit) :, :
+        :, :, (stream_count - 1) * int(frames_per_unit) :, :
     ].reshape(batch, units * int(frames_per_unit), hidden)
 
 
@@ -190,6 +191,7 @@ def macro_position_ids(
     frames_per_unit: int,
     frame_offset: int,
     device: torch.device,
+    stream_count: int = 3,
 ) -> torch.Tensor:
     """Build Qwen's 4-row token/TM-RoPE positions for macro layout."""
 
@@ -199,13 +201,13 @@ def macro_position_ids(
         raise ValueError(f"frame_offset={frame_offset} must align to {frames_per_unit} frames")
     units = int(frame_count) // frames_per_unit
     unit_offset = int(frame_offset) // frames_per_unit
-    width = 3 * frames_per_unit
+    width = stream_count * frames_per_unit
     local = torch.arange(units * width, device=device, dtype=torch.long)
     unit = torch.div(local, width, rounding_mode="floor") + unit_offset
     slot = local.remainder(width)
     token_order = local + unit_offset * width
     frame_position = unit * frames_per_unit + slot.remainder(frames_per_unit)
-    temporal = torch.where(slot < 2 * frames_per_unit, frame_position, token_order)
+    temporal = torch.where(slot < (stream_count - 1) * frames_per_unit, frame_position, token_order)
     rows = torch.stack((token_order, temporal, temporal, temporal), dim=0)
     return rows[:, None, :].expand(-1, int(batch_size), -1).contiguous()
 
@@ -216,6 +218,7 @@ def macro_attention_mask(
     frames_per_unit: int,
     cached_tokens: int = 0,
     valid_cached_tokens: int | None = None,
+    stream_count: int = 3,
 ) -> torch.Tensor:
     """Return the 4-D boolean D2 mask (``True`` means attend).
 
@@ -242,7 +245,7 @@ def macro_attention_mask(
         )
 
     units = frames // frames_per_unit
-    width = 3 * frames_per_unit
+    width = stream_count * frames_per_unit
     query_tokens = units * width
     positions = torch.arange(query_tokens, device=frame_mask.device)
     query_unit = torch.div(positions, width, rounding_mode="floor")[:, None]
@@ -254,7 +257,7 @@ def macro_attention_mask(
     current_allowed = current_allowed[None, :, :].expand(batch, -1, -1)
 
     validity = frame_mask.to(dtype=torch.bool).reshape(batch, units, frames_per_unit)
-    current_key_valid = torch.cat((validity, validity, validity), dim=2).reshape(
+    current_key_valid = torch.cat([validity] * stream_count, dim=2).reshape(
         batch, query_tokens
     )
     current_allowed = current_allowed & current_key_valid[:, None, :]
@@ -331,6 +334,8 @@ class MacroAudioPrefill:
     position_ids: torch.Tensor
     attention_mask: torch.Tensor
     next_self_history: torch.Tensor
+    visual_pos_masks: torch.Tensor | None = None
+    deepstack_visual_embeds: list[torch.Tensor] | None = None
 
 
 @dataclass(frozen=True)
@@ -467,6 +472,19 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
     @property
     def frames_per_unit(self) -> int:
         return self.d2_config.frames_per_unit
+
+    @property
+    def thinker_tokens_per_frame(self) -> int:
+        return 4 if hasattr(self, "vision_stream_embed") else 3
+
+    def enable_vision(self) -> None:
+        """Add the visual lane after loading the original D2 checkpoint."""
+        if self.frames_per_unit != 1:
+            raise ValueError("The first D2-Omni implementation requires the 80-ms checkpoint")
+        if hasattr(self, "vision_stream_embed"):
+            return
+        self.vision_stream_embed = nn.Parameter(torch.zeros_like(self.self_silence_embed))
+        self.vision_pad_embed = nn.Parameter(torch.zeros_like(self.self_silence_embed))
 
     @property
     def self_audio_delay_frames(self) -> int:
@@ -690,6 +708,8 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
         expected_total = D2_SFT_TRAINABLE_PARAMETERS - (
             0 if self.audio_encoder.training_lora_enabled else SFT_ENCODER_PARAMETERS
         )
+        if self.thinker_tokens_per_frame == 4:
+            expected_total += self.vision_stream_embed.numel() + self.vision_pad_embed.numel()
         if total != expected_total:
             raise RuntimeError(
                 f"D2 SFT has {total} trainable parameters, expected {expected_total}"
@@ -753,12 +773,37 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
         stream_embedding = self.stream_type_embedding(
             torch.arange(2, device=self.stream_type_embedding.weight.device, dtype=torch.long)
         ).to(device=embedding_device, dtype=dtype)
+        vision_inputs = None
+        vision_kwargs = {}
+        if self.thinker_tokens_per_frame == 4:
+            features, real_visual, deepstack = self._omni_visual
+            if tuple(features.shape) != tuple(text_embedding.shape):
+                raise ValueError("visual features must match [batch,audio_ticks,hidden]")
+            if tuple(real_visual.shape) != (batch_size, sequence_length):
+                raise ValueError("visual mask must match [batch,audio_ticks]")
+            real_visual = real_visual.to(device=embedding_device, dtype=torch.bool)
+            features = features.to(device=embedding_device, dtype=dtype)
+            vision_inputs = torch.where(
+                real_visual[..., None], features,
+                self.vision_pad_embed.to(dtype=dtype).view(1, 1, -1),
+            ) + self.vision_stream_embed.to(dtype=dtype).view(1, 1, -1)
+            packed_mask = torch.zeros(
+                (batch_size, sequence_length, 4), device=embedding_device, dtype=torch.bool
+            )
+            packed_mask[:, :, 2] = real_visual
+            vision_kwargs["visual_pos_masks"] = packed_mask.reshape(batch_size, -1)
+            if deepstack is not None:
+                vision_kwargs["deepstack_visual_embeds"] = [
+                    layer.to(device=embedding_device, dtype=dtype)[real_visual]
+                    for layer in deepstack
+                ]
         thinker_inputs = pack_macro_triplets(
             env_audio.to(device=embedding_device, dtype=dtype) + stream_embedding[1].view(1, 1, -1),
             self_audio_input.to(device=embedding_device, dtype=dtype)
             + stream_embedding[0].view(1, 1, -1),
             text_embedding,
             self.frames_per_unit,
+            vision_inputs=vision_inputs,
         )
         position_ids = macro_position_ids(
             batch_size=batch_size,
@@ -766,20 +811,24 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
             frames_per_unit=self.frames_per_unit,
             frame_offset=int(frame_offset),
             device=embedding_device,
+            stream_count=self.thinker_tokens_per_frame,
         )
+        position_ids = position_ids + int(getattr(self, "_d2_position_offset_tokens", 0))
         cached_tokens = (
             int(past_key_values.get_seq_length())
             if past_key_values is not None and hasattr(past_key_values, "get_seq_length")
             else 0
         )
         valid_cached_tokens = (
-            cached_tokens if valid_memory_frames is None else int(valid_memory_frames) * 3
+            cached_tokens if valid_memory_frames is None
+            else int(valid_memory_frames) * self.thinker_tokens_per_frame
         )
         attention_mask = macro_attention_mask(
             frame_mask=frame_mask.to(device=embedding_device),
             frames_per_unit=self.frames_per_unit,
             cached_tokens=cached_tokens,
             valid_cached_tokens=valid_cached_tokens,
+            stream_count=self.thinker_tokens_per_frame,
         )
         prompt_tokens = 0
         system_prompt_input_ids = getattr(self, "_d2_system_prompt_input_ids", None)
@@ -801,6 +850,11 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
                 macro_positions=position_ids,
                 macro_attention=attention_mask,
             )
+            if vision_kwargs:
+                vision_kwargs["visual_pos_masks"] = torch.cat((
+                    torch.zeros((batch_size, prompt_tokens), device=embedding_device, dtype=torch.bool),
+                    vision_kwargs["visual_pos_masks"],
+                ), dim=1)
         captured_layer24: dict[str, torch.Tensor] = {}
 
         def capture_layer24(_module: nn.Module, _inputs: tuple[Any, ...], output: Any) -> None:
@@ -820,16 +874,19 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
                 past_key_values=past_key_values,
                 use_cache=use_cache,
                 output_hidden_states=False,
+                **vision_kwargs,
             )
         finally:
             handle.remove()
         if "hidden" not in captured_layer24:
             raise RuntimeError("Thinker layer-24 hook did not run")
         layer24 = select_macro_text_slots(
-            captured_layer24["hidden"][:, prompt_tokens:], self.frames_per_unit
+            captured_layer24["hidden"][:, prompt_tokens:], self.frames_per_unit,
+            self.thinker_tokens_per_frame,
         )
         final_hidden = select_macro_text_slots(
-            thinker_outputs.last_hidden_state[:, prompt_tokens:], self.frames_per_unit
+            thinker_outputs.last_hidden_state[:, prompt_tokens:], self.frames_per_unit,
+            self.thinker_tokens_per_frame,
         )
         text_logits = self.text_logits(final_hidden)
         event_control_logits = None
@@ -882,6 +939,13 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
         if int(state.frame_offset) % self.frames_per_unit:
             raise ValueError("Transformer-XL state cuts a D2 macro unit")
         previous = state.previous_self_audio
+        if int(state.frame_offset) == 0:
+            state.d2_system_prompt_tokens = (
+                0 if system_prompt_input_ids is None else int(system_prompt_input_ids.shape[1])
+            )
+        self._d2_position_offset_tokens = (
+            int(getattr(state, "d2_system_prompt_tokens", 0)) if int(state.frame_offset) else 0
+        )
         if hasattr(self, "_d2_system_prompt_input_ids"):
             raise RuntimeError("nested D2 system-prompt forward is unsupported")
         self._d2_system_prompt_input_ids = system_prompt_input_ids
@@ -900,6 +964,7 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
             )
         finally:
             del self._d2_system_prompt_input_ids
+            del self._d2_position_offset_tokens
         next_state.previous_self_audio = _rolling_self_history(
             self_audio,
             delay_frames=self.self_audio_delay_frames,
@@ -961,6 +1026,21 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
         return (output[:batch_size], output[batch_size:])
 
     def forward(
+        self, *, vision_features=None, vision_mask=None, vision_deepstack=None, **kwargs,
+    ):
+        if self.thinker_tokens_per_frame == 4:
+            if vision_features is None or vision_mask is None:
+                raise ValueError("D2-Omni requires encoded visual features and a visual mask")
+            self._omni_visual = (vision_features, vision_mask, vision_deepstack)
+        elif vision_features is not None:
+            raise ValueError("Call enable_vision after loading the D2 checkpoint")
+        try:
+            return self._forward_audio(**kwargs)
+        finally:
+            if hasattr(self, "_omni_visual"):
+                del self._omni_visual
+
+    def _forward_audio(
         self,
         *,
         env_audio: torch.Tensor | None = None,
@@ -1071,8 +1151,11 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
         cached_tokens: int = 0,
         valid_cached_tokens: int | None = None,
         position_offset_tokens: int = 0,
+        vision_features: torch.Tensor | None = None,
+        vision_mask: torch.Tensor | None = None,
+        vision_deepstack: torch.Tensor | None = None,
     ) -> MacroAudioPrefill:
-        """Build the single causal ``2k``-audio inference call."""
+        """Build the causal audio prefix, including vision when enabled."""
         k = self.frames_per_unit
         if environment_audio.shape != self_audio.shape:
             raise ValueError("inference environment/self shapes differ")
@@ -1087,15 +1170,33 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
         env = environment_audio.to(device=device, dtype=dtype) + stream[1].view(1, 1, -1)
         own = delayed.to(device=device, dtype=dtype) + stream[0].view(1, 1, -1)
         inputs = torch.cat((env, own), dim=1)
+        visual_pos_masks = None
+        deepstack_visual_embeds = None
+        if self.thinker_tokens_per_frame == 4:
+            if vision_features is None or vision_mask is None:
+                raise ValueError("D2-Omni inference requires a visual token or explicit visual padding")
+            if vision_features.shape != env.shape or vision_mask.shape != env.shape[:2]:
+                raise ValueError("inference vision shapes do not match the audio tick")
+            real = vision_mask.to(device=device, dtype=torch.bool)
+            visual = torch.where(real[..., None], vision_features.to(device=device, dtype=dtype),
+                                 self.vision_pad_embed.to(dtype=dtype).view(1, 1, -1))
+            visual = visual + self.vision_stream_embed.to(dtype=dtype).view(1, 1, -1)
+            inputs = torch.cat((inputs, visual), dim=1)
+            visual_pos_masks = torch.cat((torch.zeros_like(real), torch.zeros_like(real), real), dim=1)
+            if vision_deepstack is not None:
+                deepstack_visual_embeds = [layer.to(device=device, dtype=dtype)[real]
+                                          for layer in vision_deepstack]
+        prefix_tokens = (self.thinker_tokens_per_frame - 1) * k
         full_positions = macro_position_ids(
             batch_size=int(inputs.shape[0]),
             frame_count=k,
             frames_per_unit=k,
             frame_offset=int(unit_offset) * k,
             device=device,
+            stream_count=self.thinker_tokens_per_frame,
         ) + int(position_offset_tokens)
         current = (
-            torch.ones((2 * k, 2 * k), dtype=torch.bool, device=device)
+            torch.ones((prefix_tokens, prefix_tokens), dtype=torch.bool, device=device)
             .tril()[None, :, :]
             .expand(int(inputs.shape[0]), -1, -1)
         )
@@ -1106,7 +1207,7 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
         )
         if int(valid_cached_tokens):
             past[:, -int(valid_cached_tokens) :] = True
-        mask = torch.cat((past[:, None, :].expand(-1, 2 * k, -1), current), dim=2)[
+        mask = torch.cat((past[:, None, :].expand(-1, prefix_tokens, -1), current), dim=2)[
             :, None, :, :
         ].contiguous()
         history = _rolling_self_history(
@@ -1117,9 +1218,11 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
         ).detach()
         return MacroAudioPrefill(
             inputs_embeds=inputs,
-            position_ids=full_positions[..., : 2 * k],
+            position_ids=full_positions[..., :prefix_tokens],
             attention_mask=mask,
             next_self_history=history,
+            visual_pos_masks=visual_pos_masks,
+            deepstack_visual_embeds=deepstack_visual_embeds,
         )
 
     @torch.no_grad()
@@ -1154,7 +1257,8 @@ class D2Qwen3OmniModel(_ReferenceQwenDuplexModel):
         if int(valid_cached_tokens):
             mask[..., cached_tokens - int(valid_cached_tokens) : cached_tokens] = True
         mask[..., -1] = True
-        absolute = int(position_offset_tokens) + int(unit_offset) * 3 * k + 2 * k + text_index
+        absolute = (int(position_offset_tokens) + int(unit_offset) * self.thinker_tokens_per_frame * k
+                    + (self.thinker_tokens_per_frame - 1) * k + text_index)
         positions = torch.full((4, int(ids.shape[0]), 1), absolute, dtype=torch.long, device=device)
         return MacroTextStep(
             inputs_embeds=embeds, position_ids=positions, attention_mask=mask, text_index=text_index

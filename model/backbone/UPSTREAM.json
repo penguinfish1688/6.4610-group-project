@@ -4,6 +4,9 @@
   "imported_on": "2026-10-16",
   "layout": "Vendored source, tracked by D2-Omni; benchmark submodules registered at the project root.",
   "local_changes": [
-    "Added this provenance file."
+    "Added this provenance file.",
+    "qwen3-omni-D2/model/duplex.py: optional fourth visual stream, DeepStack injection, and matching Transformer-XL positions, attention masks, and cache accounting.",
+    "qwen3-omni-D2/model/base.py: size and compact Transformer-XL Thinker caches using the active stream count.",
+    "qwen3-omni-D2/inference/session.py: visual prefill and cache accounting for eager four-stream inference."
   ]
 }

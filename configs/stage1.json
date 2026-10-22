@@ -1,14 +1,18 @@
 {
   "status": "design_only_not_a_training_entrypoint",
-  "teacher": {
+  "vision_encoder": {
     "repo_id": "Qwen/Qwen3-Omni-30B-A3B-Instruct",
     "revision": "26291f793822fb6be9555850f06dfe95f2d7e695",
     "frozen": true
   },
   "interval_ms": 80,
   "vision_tokens_per_interval_target": 1,
-  "camera_fps": null,
-  "first_experiment": "profile_native_encoder_before_distilling",
+  "camera_fps": 1,
+  "image_height": 96,
+  "image_width": 128,
+  "tokens_per_image": 12,
+  "distillation": false,
+  "first_experiment": "resize_native_images_and_verify_12_tokens",
   "manifest": "data/processed/stage1/train.jsonl",
   "output_dir": "outputs/stage1"
 }

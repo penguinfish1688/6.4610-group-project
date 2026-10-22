@@ -208,6 +208,10 @@ class _MacroSession:
         self.kv_cache_capacity_effective_ms = int(kv_cache_capacity_effective_ms)
         self.require_cuda_graphs = bool(require_cuda_graphs)
         self.cuda_graph_backend = cuda_graph_backend
+        self.tokens_per_tick = getattr(model, "thinker_tokens_per_frame", 3)
+        self._vision_inputs = {}
+        if self.tokens_per_tick == 4 and cuda_graph_backend is not None:
+            raise ValueError("D2-Omni currently uses eager inference; its DeepStack CUDA graphs are not captured")
         if (
             self.device.type == "cuda"
             and self.require_cuda_graphs
@@ -385,10 +389,10 @@ class _MacroSession:
         if self.cuda_graph_backend is None:
             cached = cache_sequence_length(thinker_kv) or 0
         else:
-            # Every completed macro contributes 2k audio plus k text tokens.
+            # Every completed macro contributes all active streams' k tokens.
             # Keeping this cursor on the CPU avoids synchronizing on the
             # StaticLayer's device-side cumulative_length before each replay.
-            cached = self.system_prompt_tokens + int(unit_index) * 3 * self.k
+            cached = self.system_prompt_tokens + int(unit_index) * self.tokens_per_tick * self.k
         prepared = self.model.inference_audio_prefill(
             environment_audio=environment_audio,
             self_audio=self_audio,
@@ -397,6 +401,7 @@ class _MacroSession:
             cached_tokens=cached,
             valid_cached_tokens=cached,
             position_offset_tokens=self.system_prompt_tokens,
+            **self._vision_inputs,
         )
         dtype = model_compute_dtype(self.model)
         with measure_forward(self.timings, "thinker_audio_prefill", prepared.inputs_embeds.device):
@@ -409,6 +414,9 @@ class _MacroSession:
                         past_key_values=thinker_kv,
                         use_cache=True,
                         output_hidden_states=False,
+                        **({"visual_pos_masks": prepared.visual_pos_masks,
+                            "deepstack_visual_embeds": prepared.deepstack_visual_embeds}
+                           if prepared.visual_pos_masks is not None else {}),
                     )
             else:
                 if thinker_kv is not self.cuda_graph_backend.thinker_cache:
@@ -422,8 +430,9 @@ class _MacroSession:
         next_cache = output.past_key_values
         if self.cuda_graph_backend is None:
             length = cache_sequence_length(next_cache)
-            if length is not None and length != cached + 2 * self.k:
-                raise RuntimeError(f"Thinker audio KV length {length} != {cached + 2 * self.k}")
+            expected = cached + (self.tokens_per_tick - 1) * self.k
+            if length is not None and length != expected:
+                raise RuntimeError(f"Thinker audio KV length {length} != {expected}")
         return AudioPrefillResult(
             thinker_kv=next_cache,
             next_self_audio_history=prepared.next_self_history,
@@ -447,8 +456,8 @@ class _MacroSession:
         else:
             cached = (
                 self.system_prompt_tokens
-                + int(unit_index) * 3 * self.k
-                + 2 * self.k
+                + int(unit_index) * self.tokens_per_tick * self.k
+                + (self.tokens_per_tick - 1) * self.k
                 + int(text_index)
             )
         ids = torch.tensor([[int(text_input)]], dtype=torch.long, device=self.device)
@@ -697,9 +706,13 @@ class _MacroSession:
     def step_macro(
         self,
         environment_pcm: torch.Tensor,
+        *, vision_features=None, vision_mask=None, vision_deepstack=None,
     ) -> tuple[list[bytes], list[dict[str, Any]]]:
         if self.closed:
             raise RuntimeError("session is closed")
+        self._vision_inputs = (dict(vision_features=vision_features, vision_mask=vision_mask,
+                                   vision_deepstack=vision_deepstack)
+                               if self.tokens_per_tick == 4 else {})
         unit_index = int(self.state.unit_index)
         if (unit_index + 1) * self.k > self.kv_cache_capacity_frames:
             raise ValueError("session exceeds fixed inference KV capacity")
