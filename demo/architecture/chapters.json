@@ -1,0 +1,56 @@
+[
+  {
+    "id": "overview",
+    "title": "The architecture",
+    "start": 0.0,
+    "end": 14.083311
+  },
+  {
+    "id": "audio",
+    "title": "The audio encoder",
+    "start": 14.083311,
+    "end": 36.583356
+  },
+  {
+    "id": "vision",
+    "title": "The video encoder and token queue",
+    "start": 36.583356,
+    "end": 62.375011
+  },
+  {
+    "id": "inference",
+    "title": "The 80-ms inference step",
+    "start": 62.375011,
+    "end": 87.541678
+  },
+  {
+    "id": "feedback",
+    "title": "The Talker and self-audio feedback",
+    "start": 87.541678,
+    "end": 112.541678
+  },
+  {
+    "id": "prompts",
+    "title": "Sources and task-specific system prompts",
+    "start": 112.541678,
+    "end": 135.791655
+  },
+  {
+    "id": "training",
+    "title": "Interleaving audio, vision, and text",
+    "start": 135.791655,
+    "end": 162.291655
+  },
+  {
+    "id": "memory",
+    "title": "90-second chunks and detached memory",
+    "start": 162.291655,
+    "end": 188.0
+  },
+  {
+    "id": "objectives",
+    "title": "Training targets and recap",
+    "start": 188.0,
+    "end": 213.0
+  }
+]

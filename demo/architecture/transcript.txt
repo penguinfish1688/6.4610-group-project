@@ -1,0 +1,59 @@
+D2-Omni: Encoders, Streaming Inference, and Training
+
+0:00 — The architecture
+D2-Omni extends the Qwen D2 80-ms model with streaming vision.
+One shared timeline: user audio, previous assistant speech, video, and generated text.
+
+0:14 — The audio encoder
+Incoming audio is converted to causal log-mel features.
+One shared D2 audio encoder; independent user and self-audio streaming states.
+Each audio lane produces one embedding per 80-ms tick: 12.5 Hz.
+Self audio starts with silence, then uses the previous generated waveform.
+
+0:36 — The video encoder and token queue
+Sample the video at 1 fps; never use a frame before its timestamp.
+Resize each independent image to 96 × 128 pixels and use the frozen vision encoder.
+Spatial merging produces 12 visual tokens, with matching DeepStack features.
+Release one queued visual token per 80-ms audio tick.
+25 ticks in 2 seconds = 24 visual tokens + 1 visual padding position.
+
+1:02 — The 80-ms inference step
+Prefill the task-specific system prompt once at stream start.
+Call 1: prefill [user audio U[i], delayed self audio A[i], visual token V[i]].
+Call 2: input the previous text token z[i−1], then predict z[i].
+Together, the two calls append exactly four ordered Thinker positions.
+The three-position prefill and text step share one persistent Thinker KV cache.
+
+1:27 — The Talker and self-audio feedback
+The native response state routes text or layer-24 context into the Talker.
+Talker → speech-code frame → waveform renderer → the next 80 ms of audio.
+Generated speech S[i] becomes self-audio feedback on tick i+1.
+Carry the Thinker cache, Talker cache, codec history, and audio stream state.
+Continue after text completion: speech ends on codec EOS or an INTERRUPT.
+
+1:52 — Sources and task-specific system prompts
+The current recipe uses only InstructS2S and AVQA.
+InstructS2S: conversation prompt + fixed random image encoded by the frozen tower.
+AVQA: original multiple-choice prompt + full real video aligned with scene audio.
+Prepend ordinary system-prompt tokens once, before the same-task interleaved stream.
+
+2:15 — Interleaving audio, vision, and text
+Training repeats [U[i], A[i], V[i], previous text] at every 80-ms tick.
+Align user audio, delayed reference self audio, and visual features by timestamp.
+Thinker text input: previous reference token. Target: current reference token.
+Talker also receives shifted reference codec inputs during training.
+Training uses reference history; inference uses generated text, codes, and self audio.
+
+2:42 — 90-second chunks and detached memory
+Concatenate same-task examples until the conversation is at least 720 seconds.
+One 90-s chunk = 1,125 ticks × 4 = 4,500 stream positions; the initial prompt is extra.
+Carry 90 seconds of KV memory into the next chunk and stop gradients through it.
+Backpropagate through the current 90-second chunk only.
+Carry audio encoder, previous text, Talker, codec, and delayed playback state.
+
+3:08 — Training targets and recap
+Optimize the text readouts and speech-code predictions with weighted cross entropy.
+RESPONSE / INTERRUPT: RMS anchor +6 frames. Speech EOS: last audible frame +1.
+Current CE weights: speech-code EOS ×5; text RESPONSE / INTERRUPT ×20.
+The vision encoder stays frozen; train the native D2 SFT parameter groups.
+Both modes use the same architecture: task prompt + time-aligned four-position groups.

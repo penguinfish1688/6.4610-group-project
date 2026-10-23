@@ -1,0 +1,28 @@
+{
+  "source_commit": "094bc587dc95f41ccc44811114d79460ce1990cb",
+  "checked_contract": {
+    "tick_ms": 80,
+    "image_fps": 1,
+    "visual_tokens_per_image": 12,
+    "ticks_per_two_seconds": 25,
+    "visual_padding_per_two_seconds": 1,
+    "chunk_seconds": 90,
+    "memory_seconds": 90,
+    "chunk_ticks": 1125,
+    "stream_positions_per_chunk": 4500,
+    "initial_prompt_is_extra": true
+  },
+  "source_files": {
+    "configs/train-sls.json": "830bc488ef939abde716562f782f8b859c633c240bdf4cf9864a7c10b4058337",
+    "model/vision_stream.py": "a9a58da6bb6b20cd52a4da998b9bc42ccccf5c668b46c35ac679b87e8bef58b1",
+    "model/backbone/d2/prompts.py": "e37d26306832d3cffa296ed8a038bb2e018d23c1169a75d291633bd260bd8191",
+    "model/backbone/qwen3-omni-D2/model/duplex.py": "04ecf98f843eecbbcbfda8cabde5290de936c50bb77e5d9b5fa7c18849d44c90",
+    "model/backbone/qwen3-omni-D2/model/base.py": "ac9842fcb0ecc35186f3f6db65459e1f791d00980ad9f6dad02ae2b12798ce98",
+    "model/backbone/qwen3-omni-D2/inference/session.py": "82cf40febff27a2e8a4503d01cd0a2b27cd67750660dd8aaaa51751557d11af4",
+    "model/backbone/qwen3-omni-D2/inference/control.py": "203619f49a88c170280588e75809cdfbb8f67a0ba3a201e15d95caa9dbdc7ef4",
+    "scripts/xl_data.py": "b4cdb8bca0aeb826f6c8723a4e994103f9d9965d125327f783828e5d429f8c58",
+    "scripts/prepare_native_data.py": "f34ea6cf2afcc4ad85ff7de68715948773889341355e1d3150bc72a58e84e3de",
+    "scripts/prepare_avqa.py": "f01fea770300489ef3a87913c05c9004a4526f72a76cef01ba727200fabd5b82",
+    "scripts/train_omni.py": "8160b4b0385e27b510c730602e1f1240faf5d32e7abd628cf58273962b315332"
+  }
+}

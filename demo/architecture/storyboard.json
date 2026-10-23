@@ -1,0 +1,135 @@
+{
+  "title": "D2-Omni: Encoders, Streaming Inference, and Training",
+  "description": "A narrated animation of the implemented Qwen D2 80-ms architecture. Animation timing is slowed and schematic.",
+  "scenes": [
+    {
+      "id": "overview",
+      "title": "One timeline. Four positions.",
+      "subtitle": "Extend Qwen D2 80 ms with a causal visual stream",
+      "chapter": "The architecture",
+      "sentences": [
+        {"spoken": "D two Omni extends the Qwen D two eighty millisecond model with streaming vision.", "caption": "D2-Omni extends the Qwen D2 80-ms model with streaming vision."},
+        {"spoken": "The central idea is one shared timeline: listen to the user, hear the assistant's previous speech, see the scene, and generate text and speech.", "caption": "One shared timeline: user audio, previous assistant speech, video, and generated text."}
+      ]
+    },
+    {
+      "id": "audio",
+      "title": "Audio: two streams, shared encoder",
+      "subtitle": "One user embedding and one delayed-self embedding every 80 ms",
+      "chapter": "The audio encoder",
+      "sentences": [
+        {"spoken": "Incoming audio is converted to causal log mel features.", "caption": "Incoming audio is converted to causal log-mel features."},
+        {"spoken": "A shared D two audio encoder maintains two independent streaming states: one for the environment, and one for the assistant's delayed playback.", "caption": "One shared D2 audio encoder; independent user and self-audio streaming states."},
+        {"spoken": "Every eighty milliseconds, each lane produces one embedding.", "caption": "Each audio lane produces one embedding per 80-ms tick: 12.5 Hz."},
+        {"spoken": "The first self audio input is silence; subsequent inputs come from the previous generated waveform.", "caption": "Self audio starts with silence, then uses the previous generated waveform."}
+      ]
+    },
+    {
+      "id": "vision",
+      "title": "Vision: twelve tokens per image",
+      "subtitle": "1 fps · 96 × 128 pixels (H × W) · frozen native encoder",
+      "chapter": "The video encoder and token queue",
+      "sentences": [
+        {"spoken": "Video is sampled at one frame per second.", "caption": "Sample the video at 1 fps; never use a frame before its timestamp."},
+        {"spoken": "Each independent image is resized to ninety six by one hundred twenty eight pixels and passed through the frozen vision encoder.", "caption": "Resize each independent image to 96 × 128 pixels and use the frozen vision encoder."},
+        {"spoken": "Spatial merging produces twelve visual tokens, plus matching Deep Stack features.", "caption": "Spatial merging produces 12 visual tokens, with matching DeepStack features."},
+        {"spoken": "The queue releases one token per audio tick.", "caption": "Release one queued visual token per 80-ms audio tick."},
+        {"spoken": "Because the clock is twelve point five hertz, two seconds contain twenty four visual tokens and one visual padding position.", "caption": "25 ticks in 2 seconds = 24 visual tokens + 1 visual padding position."}
+      ]
+    },
+    {
+      "id": "inference",
+      "title": "Inference: advance one quadruplet",
+      "subtitle": "[ U[i] · A[i] · V[i] · z[i−1] ] → z[i]",
+      "chapter": "The 80-ms inference step",
+      "sentences": [
+        {"spoken": "At stream start, prefill the task's system prompt once.", "caption": "Prefill the task-specific system prompt once at stream start."},
+        {"spoken": "At tick i, append the user audio embedding, the delayed self audio embedding, and the next visual token.", "caption": "Call 1: prefill [user audio U[i], delayed self audio A[i], visual token V[i]]."},
+        {"spoken": "Then append the previous text token and predict the current text or control token.", "caption": "Call 2: input the previous text token z[i−1], then predict z[i]."},
+        {"spoken": "Together these occupy four ordered Thinker positions.", "caption": "Together, the two calls append exactly four ordered Thinker positions."},
+        {"spoken": "The implementation uses a three position prefill followed by one text step, both sharing the same key value cache.", "caption": "The three-position prefill and text step share one persistent Thinker KV cache."}
+      ]
+    },
+    {
+      "id": "feedback",
+      "title": "Speak, feed back, and keep going",
+      "subtitle": "State is carried from tick i to tick i+1",
+      "chapter": "The Talker and self-audio feedback",
+      "sentences": [
+        {"spoken": "The Thinker provides text and layer twenty four context to D two's response controlled Talker.", "caption": "The native response state routes text or layer-24 context into the Talker."},
+        {"spoken": "The Talker predicts one speech code frame, and the waveform renderer produces the next audio chunk.", "caption": "Talker → speech-code frame → waveform renderer → the next 80 ms of audio."},
+        {"spoken": "Feed that generated waveform back into the self audio encoder on the following tick.", "caption": "Generated speech S[i] becomes self-audio feedback on tick i+1."},
+        {"spoken": "Keep both Thinker and Talker state.", "caption": "Carry the Thinker cache, Talker cache, codec history, and audio stream state."},
+        {"spoken": "Text may finish before speech; continue the audio loop until the Talker's codec end token or an interrupt.", "caption": "Continue after text completion: speech ends on codec EOS or an INTERRUPT."}
+      ]
+    },
+    {
+      "id": "prompts",
+      "title": "Training starts with the task prompt",
+      "subtitle": "InstructS2S and AVQA keep their different native D2 prompts",
+      "chapter": "Sources and task-specific system prompts",
+      "sentences": [
+        {"spoken": "Training uses only Instruct S two S and A V Q A.", "caption": "The current recipe uses only InstructS2S and AVQA."},
+        {"spoken": "Instruct S two S uses D two's conversation prompt and an encoded fixed random placeholder image.", "caption": "InstructS2S: conversation prompt + fixed random image encoded by the frozen tower."},
+        {"spoken": "A V Q A uses D two's original multiple choice prompt and the full real video, aligned with its scene audio.", "caption": "AVQA: original multiple-choice prompt + full real video aligned with scene audio."},
+        {"spoken": "The prompt is ordinary text at the beginning of a same task conversation, before the interleaved stream.", "caption": "Prepend ordinary system-prompt tokens once, before the same-task interleaved stream."}
+      ]
+    },
+    {
+      "id": "training",
+      "title": "Training interleaves the same four lanes",
+      "subtitle": "Ground-truth previous text and codec inputs provide teacher forcing",
+      "chapter": "Interleaving audio, vision, and text",
+      "sentences": [
+        {"spoken": "The training sequence repeats the same four positions at every audio tick.", "caption": "Training repeats [U[i], A[i], V[i], previous text] at every 80-ms tick."},
+        {"spoken": "User audio, delayed reference self audio, and visual features align by timestamp.", "caption": "Align user audio, delayed reference self audio, and visual features by timestamp."},
+        {"spoken": "The text input is the previous reference token; its target is the current token.", "caption": "Thinker text input: previous reference token. Target: current reference token."},
+        {"spoken": "Speech codec inputs are shifted reference codes as well.", "caption": "Talker also receives shifted reference codec inputs during training."},
+        {"spoken": "This is teacher forcing during training. Inference instead uses the model's own previous text, codes, and generated self audio.", "caption": "Training uses reference history; inference uses generated text, codes, and self audio."}
+      ]
+    },
+    {
+      "id": "memory",
+      "title": "Transformer-XL trains long conversations",
+      "subtitle": "90-second current chunk + 90-second detached KV memory",
+      "chapter": "90-second chunks and detached memory",
+      "sentences": [
+        {"spoken": "Concatenate same task examples until the conversation is at least seven hundred twenty seconds.", "caption": "Concatenate same-task examples until the conversation is at least 720 seconds."},
+        {"spoken": "Then train in ninety second chunks: one thousand one hundred twenty five ticks, or forty five hundred stream positions.", "caption": "One 90-s chunk = 1,125 ticks × 4 = 4,500 stream positions; the initial prompt is extra."},
+        {"spoken": "Carry the previous ninety seconds of key value memory into the next chunk, but detach it from gradients.", "caption": "Carry 90 seconds of KV memory into the next chunk and stop gradients through it."},
+        {"spoken": "Train the current chunk only.", "caption": "Backpropagate through the current 90-second chunk only."},
+        {"spoken": "Preserve audio encoder, text, Talker, and playback state across chunk boundaries.", "caption": "Carry audio encoder, previous text, Talker, codec, and delayed playback state."}
+      ]
+    },
+    {
+      "id": "objectives",
+      "title": "Supervise text and speech together",
+      "subtitle": "The native D2 timing and loss rules stay in place",
+      "chapter": "Training targets and recap",
+      "sentences": [
+        {"spoken": "Supervise the text readouts and speech codes with weighted cross entropy.", "caption": "Optimize the text readouts and speech-code predictions with weighted cross entropy."},
+        {"spoken": "Keep D two's R M S plus six frame response and interrupt placement; speech end follows the last audible frame.", "caption": "RESPONSE / INTERRUPT: RMS anchor +6 frames. Speech EOS: last audible frame +1."},
+        {"spoken": "Our continuation uses a speech end weight of five and text control weights of twenty.", "caption": "Current CE weights: speech-code EOS ×5; text RESPONSE / INTERRUPT ×20."},
+        {"spoken": "The vision encoder stays frozen.", "caption": "The vision encoder stays frozen; train the native D2 SFT parameter groups."},
+        {"spoken": "The architecture is the same in both modes: a task prompt, followed by time aligned four position groups.", "caption": "Both modes use the same architecture: task prompt + time-aligned four-position groups."}
+      ]
+    }
+  ],
+  "prompts": {
+    "conversation": "You are a helpful spoken conversational assistant. Respond naturally when the user finishes speaking.",
+    "avqa": "You are answering a multiple-choice audio question. Respond with the correct choice letter followed by the corresponding option wording."
+  },
+  "source_files": [
+    "configs/train-sls.json",
+    "model/vision_stream.py",
+    "model/backbone/d2/prompts.py",
+    "model/backbone/qwen3-omni-D2/model/duplex.py",
+    "model/backbone/qwen3-omni-D2/model/base.py",
+    "model/backbone/qwen3-omni-D2/inference/session.py",
+    "model/backbone/qwen3-omni-D2/inference/control.py",
+    "scripts/xl_data.py",
+    "scripts/prepare_native_data.py",
+    "scripts/prepare_avqa.py",
+    "scripts/train_omni.py"
+  ]
+}

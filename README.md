@@ -27,6 +27,10 @@ MP4 includes synchronized input audio, generated speech, waveforms, and streamin
 text. InstructS2S speaks its full longer answer; AVQA remains one correct answer
 out of these two development examples.
 
+The [narrated architecture video](demo/architecture/README.md) explains the audio
+and vision encoders, four-position streaming inference, task prompts, aligned
+training sequences, and 90-second Transformer-XL chunks with detached memory.
+
 ## Repository layout
 
 ```text

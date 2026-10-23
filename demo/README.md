@@ -1,5 +1,8 @@
 # D2-Omni demos
 
+The [architecture walkthrough](architecture/README.md) is a narrated, animated
+3:33 explanation of the encoders, streaming quadruplets, and training layout.
+
 The [checkpoint-9,000 recordings](checkpoint-9000/README.md) contain three shareable
 MP4s: two AVQA examples with real video and audio, and one InstructS2S example
 with the encoded training placeholder. Each includes input audio and generated
