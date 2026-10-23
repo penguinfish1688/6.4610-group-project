@@ -9,7 +9,7 @@ pipeline instead of training an omni model from scratch.
 Qwen D2 80-ms checkpoint, real AVQA video, and InstructS2S placeholder images.
 The initial run completed 1,000 updates, with fixed development loss changing
 from 2.104 to 0.734 and a median step time of 8.08 seconds on four A6000 GPUs.
-The continuation targets 10,000 total updates and reduces speech-code EOS CE
+The continuation targeted 10,000 total updates and reduced speech-code EOS CE
 weight from 20 to 5, restoring model, optimizer, scheduler, RNG, and XL state.
 The vision encoder remains frozen; this recipe uses resizing without distillation.
 
@@ -19,6 +19,13 @@ InstructS2S produced sensible full text but speech ended after the introduction.
 At update 2,000, the same InstructS2S example speaks all three tips, confirmed
 by ASR, with 6.24 seconds of active speech versus 1.92 seconds previously.
 Both AVQA answers are unchanged. Broader speech completion still needs evaluation.
+
+Training is now stopped after update 9,033, with the complete step-9,000 checkpoint
+retained. The [recorded demos](demo/checkpoint-9000/README.md) contain two real-video
+AVQA examples and one InstructS2S example with its actual placeholder image. Each
+MP4 includes synchronized input audio, generated speech, waveforms, and streaming
+text. InstructS2S speaks its full longer answer; AVQA remains one correct answer
+out of these two development examples.
 
 ## Repository layout
 
@@ -35,7 +42,7 @@ configs/                  Vision settings and SLS training recipe
 scripts/                  Dataset preparation, XL training, checkpoint utilities
 tests/                    Vision, four-position layout and XL recurrence checks
 evaluation/               Benchmark protocol and planned evaluation work
-demo/                     Planned webcam/microphone/speech demo
+demo/                     Recorded inference videos and live-demo plan
 docs/                     Architecture, task ownership, and progress updates
 ```
 

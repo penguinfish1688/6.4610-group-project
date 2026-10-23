@@ -41,6 +41,11 @@ slurm-*.err
 *.flac
 *.mp3
 
+# Reviewed, small demo exports published with the project.
+!demo/checkpoint-9000/avqa-1.mp4
+!demo/checkpoint-9000/avqa-2.mp4
+!demo/checkpoint-9000/instructs2s-1.mp4
+
 # Local SLS mount helper and mountpoint.
 /mount.sh
 /sls_mount/

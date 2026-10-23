@@ -1,0 +1,73 @@
+{
+  "checkpoint_update": 9000,
+  "audio_timing_preserved": true,
+  "original_source_wavs_unchanged": true,
+  "examples": [
+    {
+      "name": "avqa-1",
+      "file": "avqa-1.mp4",
+      "duration_seconds": 39.52,
+      "bytes": 2121239,
+      "tracks": [
+        {
+          "track": "Input + model speech",
+          "cosine_similarity": 0.999966138373959
+        },
+        {
+          "track": "Input only",
+          "cosine_similarity": 0.9999742517511508
+        },
+        {
+          "track": "Model speech only",
+          "cosine_similarity": 0.9999941715895643
+        }
+      ],
+      "speech_timing_offset_ms": 0.0,
+      "complete_decode": true
+    },
+    {
+      "name": "avqa-2",
+      "file": "avqa-2.mp4",
+      "duration_seconds": 38.0,
+      "bytes": 3379449,
+      "tracks": [
+        {
+          "track": "Input + model speech",
+          "cosine_similarity": 0.9999829249420091
+        },
+        {
+          "track": "Input only",
+          "cosine_similarity": 0.9999889278879852
+        },
+        {
+          "track": "Model speech only",
+          "cosine_similarity": 0.9999893824833747
+        }
+      ],
+      "speech_timing_offset_ms": 0.0,
+      "complete_decode": true
+    },
+    {
+      "name": "instructs2s-1",
+      "file": "instructs2s-1.mp4",
+      "duration_seconds": 35.92,
+      "bytes": 2160884,
+      "tracks": [
+        {
+          "track": "Input + model speech",
+          "cosine_similarity": 0.9999892223014446
+        },
+        {
+          "track": "Input only",
+          "cosine_similarity": 0.9999795906744787
+        },
+        {
+          "track": "Model speech only",
+          "cosine_similarity": 0.9999927674454802
+        }
+      ],
+      "speech_timing_offset_ms": 0.0,
+      "complete_decode": true
+    }
+  ]
+}
