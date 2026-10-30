@@ -77,7 +77,8 @@ python -m scripts.download_release --verify
 
 ## Reproduce the three video examples
 
-Use Linux, Python 3.12, a 48-GB NVIDIA GPU and at least 96 GB of host RAM.
+Use Linux, Python 3.12 and a 48-GB NVIDIA GPU. We recommend 180 GB of host RAM;
+the fresh reproduction run peaked near 123 GiB of process RSS during loading.
 The SLS inference job requests one A6000, 180 GB RAM and eight CPU cores. The
 verified runtime uses PyTorch 2.11.0 with CUDA 12.6, Transformers 5.13.0 and
 BF16 compute. GPU residency is approximately 36 GiB after INT8 conversion.
