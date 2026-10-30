@@ -19,11 +19,16 @@ def quantize(model, cfg, device, *, training=True):
         unused_vocoder_bytes = sum(p.numel() * p.element_size() for p in vocoder.parameters())
         del model.qwen.code2wav
     del vocoder
-    reference = Path(cfg["legacy_d2_root"]) / "qwen_duplex"
-    sys.path.insert(0, cfg["legacy_d2_root"])
-    sys.path.insert(0, str(reference))
-    legacy = importlib.import_module("qwen3.model.qwen3_omni.int8_moe")
-    kernels = importlib.import_module("duplex.frozen_moe_int8")
+    if cfg.get("portable_runtime", False):
+        from model import int8_runtime as legacy
+
+        kernels = legacy.kernels
+    else:
+        reference = Path(cfg["legacy_d2_root"]) / "qwen_duplex"
+        sys.path.insert(0, cfg["legacy_d2_root"])
+        sys.path.insert(0, str(reference))
+        legacy = importlib.import_module("qwen3.model.qwen3_omni.int8_moe")
+        kernels = importlib.import_module("duplex.frozen_moe_int8")
 
     # The legacy SM8 inference fallback is intended for one streaming token.
     # Full 90-second training/validation batches use D2's grouped kernel.

@@ -1,0 +1,19 @@
+{
+  "description": "Runtime used to produce the recorded step-9000 demos; frozen expert module copied unchanged, D2 fallback function bodies copied unchanged.",
+  "upstream_project": "https://github.com/penguinfish1688/D2-dialogue-to-duplex",
+  "files": [
+    {
+      "source": ".runtime/qwen_duplex/duplex/frozen_moe_int8.py",
+      "sha256": "145ba7c52fe2bdb9ee84037db3a0c6c7fcd523a836dca34543184ade3969a396"
+    },
+    {
+      "source": "qwen3/model/qwen3_omni/int8_moe.py",
+      "sha256": "caface1a063806e806eb1a0ee1aebdb86654651f5c646f3c9a4b4ec468a25bfa"
+    }
+  ],
+  "functions": [
+    "_use_cuda_fallback_routed_bmm",
+    "_fixed_shape_routed_int8_linear",
+    "_d2_frozen_int8_grouped_linear"
+  ]
+}

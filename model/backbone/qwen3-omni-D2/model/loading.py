@@ -16,7 +16,7 @@ def load_model(source, *, device="cuda", revision=None, offline=False, training=
     encoder_file = root / "encoder.safetensors"
     if not encoder_file.is_file():
         raise FileNotFoundError(f"Release is missing {encoder_file}")
-    base = asset(config, "base_model", offline=offline)
+    base = asset(config, "base_model", offline=offline, root=root)
     processor = Qwen3OmniMoeProcessor.from_pretrained(base, local_files_only=True)
     if training:
         experts = "eager"

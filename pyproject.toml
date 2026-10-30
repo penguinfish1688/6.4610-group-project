@@ -24,6 +24,7 @@ dev = ["pytest>=9.0", "ruff>=0.15"]
 packages = ["model", "model.vision_encoder"]
 
 [tool.setuptools.package-data]
+"model" = ["INT8_UPSTREAM.json"]
 "model.vision_encoder" = ["README.md", "UPSTREAM.json", "LICENSE"]
 
 [tool.ruff]

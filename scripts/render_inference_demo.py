@@ -220,7 +220,7 @@ def render_case(run, result_path, output, placeholder, asr):
             "color=0x050a12,setsar=1[visual]"
         )
         source_seconds = None
-    overlay = f"[1:v][visual]overlay=40:110:shortest=1[scene]"
+    overlay = "[1:v][visual]overlay=40:110:shortest=1[scene]"
     # drawtext's x expression is evaluated per video frame, so both playheads
     # share exactly the same t as the video and the unshifted mixed soundtrack.
     cursor = ";".join(

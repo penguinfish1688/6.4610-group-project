@@ -28,6 +28,28 @@ def merge_parameter(parts, shape):
 def restore_inference_checkpoint(model, output):
     output = Path(output)
     manifest = json.loads((output / "latest.json").read_text())
+    if manifest.get("format") == "d2_omni.inference.v1":
+        from safetensors.torch import load_file
+
+        entry = manifest["weights"]
+        path = (output / entry["path"]).resolve()
+        if not path.is_relative_to(output.resolve()):
+            raise ValueError("Inference weight path escapes the release")
+        if path.stat().st_size != entry["bytes"]:
+            raise ValueError(f"Checkpoint size mismatch: {path}")
+        with path.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != entry["sha256"]:
+                raise ValueError(f"Checkpoint checksum mismatch: {path}")
+        weights = load_file(str(path), device="cpu")
+        named = {name: p for name, p in model.named_parameters() if p.requires_grad}
+        if set(weights) != set(named):
+            raise ValueError("Inference and release trainable inventories differ")
+        for name, parameter in named.items():
+            restored = weights[name]
+            if restored.shape != parameter.shape or not bool(torch.isfinite(restored).all()):
+                raise ValueError(f"Invalid released parameter: {name}")
+            parameter.copy_(restored.to(dtype=parameter.dtype, device=parameter.device))
+        return dict(step=manifest["step"], manifest=manifest, parameters_restored=len(named))
     shards = []
     for entry in manifest["shards"]:
         path = output / entry["path"]

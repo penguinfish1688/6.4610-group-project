@@ -130,7 +130,13 @@ def select_cases(cfg, tokenizer):
 
 @torch.no_grad()
 def run(args):
-    cfg = json.loads(args.config.read_text())
+    bundle = getattr(args, "bundle", None)
+    if bundle is not None:
+        from model.release_bundle import inference_config
+
+        cfg = inference_config(bundle)
+    else:
+        cfg = json.loads(args.config.read_text())
     output = args.output
     output.mkdir(parents=True, exist_ok=True)
     torch.set_num_threads(4)
@@ -164,7 +170,12 @@ def run(args):
         parameters_restored=checkpoint["parameters_restored"],
         allocated_gb=torch.cuda.memory_allocated() / 2**30,
     )
-    cases = select_cases(cfg, model.processor.tokenizer)
+    if bundle is not None:
+        from model.release_bundle import select_cases as select_released_cases
+
+        cases = select_released_cases(bundle, model.processor.tokenizer)
+    else:
+        cases = select_cases(cfg, model.processor.tokenizer)
     results = []
     for case in cases:
         torch.manual_seed(cfg["seed"])
@@ -310,5 +321,6 @@ def run(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path("configs/train-sls.json"))
+    parser.add_argument("--bundle", type=Path, help="Complete local release, such as weight/base_1030")
     parser.add_argument("--output", type=Path, default=Path("runs/inference-step1000"))
     run(parser.parse_args())

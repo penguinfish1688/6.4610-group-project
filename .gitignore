@@ -20,6 +20,13 @@ data/processed/
 data/features/
 checkpoints/
 weights/
+# Public release metadata is tracked; model binaries and demo inputs live on HF.
+weight/*
+!weight/base_1030/
+weight/base_1030/*
+!weight/base_1030/README.md
+!weight/base_1030/hub.json
+!weight/base_1030/requirements-inference.txt
 outputs/
 results/
 runs/

@@ -50,8 +50,18 @@ def load_release(
     return root, config
 
 
-def asset(config: dict, name: str, *, offline: bool = False) -> Path:
+def asset(config: dict, name: str, *, offline: bool = False, root: Path | None = None) -> Path:
     spec = config[name]
     if not isinstance(spec, dict) or not isinstance(spec.get("repo_id"), str):
         raise ValueError(f"Invalid asset specification: {name}")
+    if "local_path" in spec:
+        if root is None or not isinstance(spec["local_path"], str):
+            raise ValueError("A bundled local asset requires its release root")
+        release_root = Path(root).resolve()
+        path = (release_root / spec["local_path"]).resolve()
+        if not path.is_relative_to(release_root.parent):
+            raise ValueError("Local asset escapes the release bundle")
+        if not path.is_dir():
+            raise FileNotFoundError(f"Bundled asset is missing: {path}")
+        return path
     return snapshot(spec["repo_id"], revision=spec.get("revision"), offline=offline)

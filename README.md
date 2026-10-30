@@ -27,6 +27,11 @@ MP4 includes synchronized input audio, generated speech, waveforms, and streamin
 text. InstructS2S speaks its full longer answer; AVQA remains one correct answer
 out of these two development examples.
 
+The [experimental, unfinished `base_1030` weight release](weight/base_1030/README.md)
+contains the base D2 model, our step-9,000 fine-tuned components, and the three
+demo inputs. Download from Hugging Face into **`weight/base_1030/`** with
+`python -m scripts.download_release`, then follow the reproduction instructions.
+
 The [narrated architecture video](demo/architecture/README.md) explains the audio
 and vision encoders, four-position streaming inference, task prompts, aligned
 training sequences, and 90-second Transformer-XL chunks with detached memory.
