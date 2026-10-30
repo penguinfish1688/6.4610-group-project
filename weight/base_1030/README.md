@@ -54,9 +54,14 @@ checkpoint remains under `runs/d2-omni-xl-80ms/` on SLS.
 
 ## Download
 
-From the repository root, with Python 3.12:
+Clone the code and create a Python 3.12 environment:
 
 ```bash
+git clone https://github.com/penguinfish1688/6.4610-group-project.git D2-Omni
+cd D2-Omni
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 python -m pip install 'huggingface-hub>=1.5,<2'
 python -m scripts.download_release
 ```
@@ -77,12 +82,10 @@ The SLS inference job requests one A6000, 180 GB RAM and eight CPU cores. The
 verified runtime uses PyTorch 2.11.0 with CUDA 12.6, Transformers 5.13.0 and
 BF16 compute. GPU residency is approximately 36 GiB after INT8 conversion.
 
-Create an environment and install the matching CUDA wheels before the packages:
+In that environment, install the matching CUDA wheels before the packages:
 
 ```bash
-python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
 python -m pip install torch==2.11.0 torchaudio==2.11.0 torchvision==0.26.0 \
   --index-url https://download.pytorch.org/whl/cu126
 python -m pip install -r weight/base_1030/requirements-inference.txt
