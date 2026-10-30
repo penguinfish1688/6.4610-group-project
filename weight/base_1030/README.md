@@ -98,8 +98,8 @@ sbatch scripts/infer_omni.sbatch --bundle weight/base_1030 \
   --output runs/reproduce-base_1030
 ```
 
-Each case produces `input.wav`, full-timeline `output.wav`, trimmed
-`response.wav`, `output.txt`, a frame trace and a `result.json`. Open
+Each case produces `input.wav`, full-timeline `output.wav`, `output.txt`, a frame
+trace and a `result.json`; the packaging command below adds trimmed `response.wav`. Open
 `runs/reproduce-base_1030/index.html` to review them. The released source snapshot
 can also be extracted into a new directory; it includes the same inference code.
 Generation seeds and sampling settings are stored in `inference-config.json`.
