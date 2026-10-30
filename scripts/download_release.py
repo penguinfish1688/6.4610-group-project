@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,7 @@ def main():
     parser.add_argument("--verify", action="store_true", help="Read and SHA256-check all downloaded files")
     args = parser.parse_args()
     pin = json.loads((ROOT / "weight/base_1030/hub.json").read_text())
+    os.environ.setdefault("HF_HOME", str(ROOT / ".cache/huggingface-download"))
     from huggingface_hub import snapshot_download
 
     snapshot_download(
