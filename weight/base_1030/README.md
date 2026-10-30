@@ -130,6 +130,11 @@ inputs with the repository's normal video pipeline. No speech or text targets
 are fed back into the released inference loop: self-audio comes from the
 model's generated waveform.
 
+A fresh single-A6000 run restored this bundle and reproduced **all three original
+text answers, complete WAV files and active speech timelines exactly**. The checks
+are recorded in `reproduction-check.json`. InstructS2S speech continues after text
+generation finishes and completes all three tips.
+
 ## Architecture and training
 
 Every 80-ms tick streams user audio, delayed generated self-audio, a visual token

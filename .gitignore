@@ -27,6 +27,7 @@ weight/base_1030/*
 !weight/base_1030/README.md
 !weight/base_1030/hub.json
 !weight/base_1030/requirements-inference.txt
+!weight/base_1030/reproduction-check.json
 outputs/
 results/
 runs/
