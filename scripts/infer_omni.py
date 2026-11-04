@@ -129,7 +129,7 @@ def select_cases(cfg, tokenizer):
 
 
 @torch.no_grad()
-def run(args):
+def run(args, *, case_loader=None, resume=False, on_result=None):
     bundle = getattr(args, "bundle", None)
     if bundle is not None:
         from model.release_bundle import inference_config
@@ -170,7 +170,9 @@ def run(args):
         parameters_restored=checkpoint["parameters_restored"],
         allocated_gb=torch.cuda.memory_allocated() / 2**30,
     )
-    if bundle is not None:
+    if case_loader is not None:
+        cases = case_loader(cfg, model.processor.tokenizer)
+    elif bundle is not None:
         from model.release_bundle import select_cases as select_released_cases
 
         cases = select_released_cases(bundle, model.processor.tokenizer)
@@ -181,6 +183,21 @@ def run(args):
         torch.manual_seed(cfg["seed"])
         folder = output / case["name"]
         folder.mkdir(exist_ok=True)
+        result_path = folder / "result.json"
+        if resume and result_path.is_file():
+            result = json.loads(result_path.read_text())
+            if (result["name"] != case["name"]
+                    or result.get("evaluation") != case.get("evaluation")
+                    or result["checkpoint_update"] != checkpoint["step"]):
+                raise ValueError(f"Saved result does not match this evaluation: {result_path}")
+            with wave.open(str(folder / "output.wav"), "rb") as saved_audio:
+                if saved_audio.getnframes() == 0:
+                    raise ValueError(f"Empty saved audio: {folder}")
+            results.append(result)
+            if on_result is not None:
+                on_result(results)
+            log("case_reused", name=case["name"])
+            continue
         audio = case["audio"]
         frames = audio.numel() // 1280
         visual = {key: value.to(device) for key, value in case["visual"].items()}
@@ -245,7 +262,7 @@ def run(args):
             task=case["task"],
             checkpoint_update=checkpoint["step"],
             prepared_source=case["path"],
-            split="development",
+            split=case.get("split", "development"),
             prompt=case["prompt"],
             system_prompt_input_ids=list(case["prompt_ids"]),
             prompt_matches_training=True,
@@ -266,8 +283,14 @@ def run(args):
             session_summary=summary,
             events=events,
         )
-        (folder / "result.json").write_text(json.dumps(result, indent=2, default=str) + "\n")
+        if "evaluation" in case:
+            result["evaluation"] = case["evaluation"]
+        temporary = result_path.with_suffix(".json.partial")
+        temporary.write_text(json.dumps(result, indent=2, default=str) + "\n")
+        temporary.replace(result_path)
         results.append(result)
+        if on_result is not None:
+            on_result(results)
         log(
             "case_complete",
             name=case["name"],

@@ -23,12 +23,14 @@ def inference_config(bundle):
     return config
 
 
-def select_cases(bundle, tokenizer):
-    root = Path(bundle).resolve()
-    manifest = json.loads((root / "examples/manifest.json").read_text())
+def select_cases(bundle, tokenizer, *, manifest_path=None, data_root=None, names=None):
+    root = Path(data_root or bundle).resolve()
+    manifest = json.loads(Path(manifest_path or root / "examples/manifest.json").read_text())
     prompts = task_system_prompt_token_ids(tokenizer)
     cases = []
     for row in manifest["cases"]:
+        if names is not None and row["name"] not in names:
+            continue
         path = inside(root, row["input"])
         with path.open("rb") as stream:
             if hashlib.file_digest(stream, "sha256").hexdigest() != row["input_sha256"]:
@@ -54,5 +56,6 @@ def select_cases(bundle, tokenizer):
             prompt_ids=ids, prompt=row["prompt"], reference=row["reference"],
             video_path=str(video) if video else None, annotation=row["annotation"],
             reference_response_seconds=row["reference_response_seconds"],
+            split=row.get("split", "development"),
         ))
     return cases
