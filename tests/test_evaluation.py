@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from scripts.evaluation_report import donor_map, guard_run, parse_choice, report, select_rows
+from scripts.evaluation.report import donor_map, guard_run, parse_choice, report, select_rows
 
 try:
     import torch
@@ -48,7 +48,7 @@ class EvaluationTests(unittest.TestCase):
                 guard_run(folder, {"seed": 2})
 
     def test_dry_run_plans_external_inputs_without_model_dependencies_or_output(self):
-        from scripts.evaluate_omni import main
+        from scripts.evaluation.run import main
 
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -91,7 +91,7 @@ class EvaluationTests(unittest.TestCase):
 @unittest.skipIf(torch is None, "PyTorch is required for tensor ablation checks")
 class VisualAblationTests(unittest.TestCase):
     def test_padding_and_mismatch_remove_all_target_deepstack_information(self):
-        from scripts.evaluation_inputs import ablate_visual
+        from scripts.evaluation.inputs import ablate_visual
 
         target = dict(vision_mask=torch.tensor([[True, False, True, True]]),
                       vision_features=torch.full((1, 4, 2), 7.0),

@@ -16,4 +16,4 @@ module load miniforge
 source activate "$PWD/.venv"
 export HF_HOME="$PWD/.cache/huggingface-download"
 export HF_HUB_OFFLINE=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1
-srun python -u -m scripts.evaluate_omni "$@"
+srun python -u -m scripts.evaluation "$@"

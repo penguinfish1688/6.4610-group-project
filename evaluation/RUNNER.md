@@ -4,12 +4,18 @@ The runner evaluates prepared AVQA inputs with the released step-9,000 model.
 The bundled two AVQA cases are debugging examples, not a benchmark. InstructS2S
 is excluded. No training or live visual encoding is performed.
 
+Implementation files are grouped under `scripts/evaluation/`; see the
+[scripts directory guide](../scripts/README.md). The package entry point is
+`python -m scripts.evaluation`. The earlier top-level `scripts.evaluate_omni`
+command has been replaced. Because resume checks fingerprint code, use a new
+output directory if you already ran the previous layout.
+
 ## Preview without a GPU
 
 Run from the repository root in the Python environment used for reproduction:
 
 ```bash
-python -m scripts.evaluate_omni --dry-run
+python -m scripts.evaluation --dry-run
 ```
 
 The defaults select both AVQA cases and three conditions (six rollouts):
@@ -36,7 +42,7 @@ Submit from the checkout root (create logs before submission):
 
 ```bash
 mkdir -p logs
-sbatch scripts/evaluate_omni_orcd.sbatch --output runs/avqa-eval-demo-v1
+sbatch scripts/evaluation/orcd.sbatch --output runs/avqa-eval-demo-v1
 ```
 
 The batch script requests one L40S, 180 GB host RAM, eight CPUs and two hours on
@@ -47,7 +53,7 @@ increase the time limit for larger sets. It uses ORCD Miniforge and your local
 Inside an existing GPU allocation, run directly instead:
 
 ```bash
-python -u -m scripts.evaluate_omni --output runs/avqa-eval-demo-v1
+python -u -m scripts.evaluation --output runs/avqa-eval-demo-v1
 ```
 
 Use `--conditions correct padding` to start with two conditions, or

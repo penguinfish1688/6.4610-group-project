@@ -5,7 +5,7 @@ import importlib.metadata
 import json
 from pathlib import Path
 
-from scripts.evaluation_report import (
+from scripts.evaluation.report import (
     CONDITIONS, digest, donor_map, guard_run, report, select_rows,
 )
 
@@ -36,12 +36,12 @@ def run(args):
         runtime_versions={name: importlib.metadata.version(name) for name in (
             "torch", "transformers", "safetensors",
         )} if not args.dry_run else {},
-        code_sha256={name: digest(Path(__file__).parent / name) for name in (
-            "evaluate_omni.py", "evaluation_report.py", "evaluation_inputs.py", "infer_omni.py",
-        )},
+        code_sha256={},
     )
-    root = Path(__file__).resolve().parents[1]
-    for name in ("model/release_bundle.py", "model/int8_runtime.py",
+    root = Path(__file__).resolve().parents[2]
+    for name in ("scripts/evaluation/__main__.py", "scripts/evaluation/run.py",
+                 "scripts/evaluation/report.py", "scripts/evaluation/inputs.py",
+                 "scripts/infer_omni.py", "model/release_bundle.py", "model/int8_runtime.py",
                  "scripts/quantize_experts.py", "scripts/inference_checkpoint.py",
                  "model/backbone/qwen3-omni-D2/inference/session.py",
                  "model/backbone/qwen3-omni-D2/model/duplex.py"):
@@ -52,7 +52,7 @@ def run(args):
     guard_run(args.output, identity)
     # GPU/D2 imports are deferred so --help and --dry-run need no model runtime.
     from model.release_bundle import select_cases
-    from scripts.evaluation_inputs import ablate_visual
+    from scripts.evaluation.inputs import ablate_visual
     from scripts.infer_omni import run as infer
 
     def load_cases(_config, tokenizer):
