@@ -1,5 +1,10 @@
 # Evaluation workstream
 
+The [paired AVQA runner](RUNNER.md) now supports correct, padded, and mismatched
+video using the released bundle or an external prepared manifest, with scoring,
+per-case outputs, resumable runs, and an ORCD batch script. Start with the two
+bundled AVQA cases to debug the procedure; these are not a benchmark.
+
 First implement a reproducible held-out AVQA runner. Record the exact dataset
 variant/version, video-level split, prompt, answer normalization, metric, and
 checkpoint revision. Do not train on test videos, including during Stage I.
@@ -21,4 +26,5 @@ context length, warmup, hardware, and software versions with every latency resul
 
 D2's existing benchmark documentation is under `model/backbone/benchmarks/`.
 Initialize its pinned benchmark submodules from the repository root when needed.
-The D2-Omni AVQA/latency runners are not implemented yet.
+Broader held-out data preparation and a live end-to-end latency runner remain
+to be implemented.

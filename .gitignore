@@ -9,6 +9,7 @@ dist/
 .pytest_cache/
 .ruff_cache/
 .cache/
+graphify-out/
 .env
 .env.*
 !.env.example
@@ -31,6 +32,9 @@ weight/base_1030/*
 outputs/
 results/
 runs/
+/reproduce-base_1030-first/
+/eval-demo-v1/
+/eval-smoke-v1/
 logs/
 wandb/
 slurm-*.out

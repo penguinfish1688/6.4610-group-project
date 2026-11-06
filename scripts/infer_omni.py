@@ -129,7 +129,7 @@ def select_cases(cfg, tokenizer):
 
 
 @torch.no_grad()
-def run(args):
+def run(args, *, case_loader=None, resume=False, on_result=None):
     bundle = getattr(args, "bundle", None)
     if bundle is not None:
         from model.release_bundle import inference_config
@@ -153,14 +153,18 @@ def run(args):
 
     log("loading_cpu_backbone", checkpoint_run=cfg["output"])
     model, release = load_model(cfg["d2_source"], device="cpu", offline=True, training=True)
-    model.enable_vision()
+    variant = getattr(args, "model", "finetuned")
+    if variant == "finetuned":
+        model.enable_vision()
     for parameter in model.parameters():
         if parameter.requires_grad:
             parameter.data = parameter.data.float()
     log("quantizing_frozen_experts")
     log("experts_ready", **quantize(model, cfg, device, training=False))
     log("restoring_inference_checkpoint")
-    checkpoint = restore_inference_checkpoint(model, cfg["output"])
+    checkpoint = (restore_inference_checkpoint(model, cfg["output"])
+                  if variant == "finetuned" else
+                  dict(step="base-d2", parameters_restored=0, manifest=None))
     model.to(device=device).eval().requires_grad_(False)
     gc.collect()
     torch.cuda.empty_cache()
@@ -170,7 +174,9 @@ def run(args):
         parameters_restored=checkpoint["parameters_restored"],
         allocated_gb=torch.cuda.memory_allocated() / 2**30,
     )
-    if bundle is not None:
+    if case_loader is not None:
+        cases = case_loader(cfg, model.processor)
+    elif bundle is not None:
         from model.release_bundle import select_cases as select_released_cases
 
         cases = select_released_cases(bundle, model.processor.tokenizer)
@@ -181,10 +187,26 @@ def run(args):
         torch.manual_seed(cfg["seed"])
         folder = output / case["name"]
         folder.mkdir(exist_ok=True)
+        result_path = folder / "result.json"
+        if resume and result_path.is_file():
+            result = json.loads(result_path.read_text())
+            if (result["name"] != case["name"]
+                    or result.get("evaluation") != case.get("evaluation")
+                    or result["checkpoint_update"] != checkpoint["step"]):
+                raise ValueError(f"Saved result does not match this evaluation: {result_path}")
+            with wave.open(str(folder / "output.wav"), "rb") as saved_audio:
+                if saved_audio.getnframes() == 0:
+                    raise ValueError(f"Empty saved audio: {folder}")
+            results.append(result)
+            if on_result is not None:
+                on_result(results)
+            log("case_reused", name=case["name"])
+            continue
         audio = case["audio"]
         frames = audio.numel() // 1280
         visual = {key: value.to(device) for key, value in case["visual"].items()}
-        write_wav(folder / "input.wav", audio, 16000)
+        if "environment_mel" not in case:
+            write_wav(folder / "input.wav", audio, 16000)
         if case["video_path"]:
             link = folder / "video.mp4"
             if not link.exists():
@@ -205,6 +227,10 @@ def run(args):
             system_prompt_kind=case["task"],
             system_prompt_input_ids=case["prompt_ids"],
         )
+        if "environment_mel" in case:
+            from scripts.evaluation.prepared import PreparedMelStream
+
+            session.env_stream = PreparedMelStream(session.env_stream, case["environment_mel"])
         log(
             "case_start",
             name=case["name"],
@@ -245,7 +271,7 @@ def run(args):
             task=case["task"],
             checkpoint_update=checkpoint["step"],
             prepared_source=case["path"],
-            split="development",
+            split=case.get("split", "development"),
             prompt=case["prompt"],
             system_prompt_input_ids=list(case["prompt_ids"]),
             prompt_matches_training=True,
@@ -258,6 +284,8 @@ def run(args):
             audio_seconds=frames * 0.08,
             wall_seconds=time.monotonic() - started,
             teacher_forcing=False,
+            model_variant=variant,
+            environment_input_mode=("prepared_mel" if "environment_mel" in case else "waveform"),
             output_rms=float(np.sqrt(np.mean(signal**2))),
             output_peak=float(np.max(np.abs(signal))),
             response_starts_seconds=[
@@ -266,8 +294,14 @@ def run(args):
             session_summary=summary,
             events=events,
         )
-        (folder / "result.json").write_text(json.dumps(result, indent=2, default=str) + "\n")
+        if "evaluation" in case:
+            result["evaluation"] = case["evaluation"]
+        temporary = result_path.with_suffix(".json.partial")
+        temporary.write_text(json.dumps(result, indent=2, default=str) + "\n")
+        temporary.replace(result_path)
         results.append(result)
+        if on_result is not None:
+            on_result(results)
         log(
             "case_complete",
             name=case["name"],
