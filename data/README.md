@@ -4,6 +4,12 @@ This directory holds preparation code, small manifests, and dataset documentatio
 Store downloaded media in `raw/`, assembled conversations in `processed/`, and
 cached teacher representations in `features/` (all ignored by Git).
 
+The exact [step-9,000 prepared corpus](https://huggingface.co/datasets/penguinfish1688/D2-Omni-step9000-training-data)
+is available on Hugging Face. See its [dataset card](releases/step9000/README.md)
+and [training recipe](releases/step9000/TRAINING.md). For new paired audio files,
+use the [Mimi preprocessing pipeline](../docs/data-pipeline.md); it writes the
+portable `d2_omni.dataset.v1` manifest consumed by `scripts.train_omni`.
+
 ## Stage I
 
 Use training videos from AVQA and other suitable video datasets to distill or
@@ -41,6 +47,7 @@ Conventions:
   Upload reusable processed data/metadata to Hugging Face once the dataset is
   ready and source terms permit sharing; record the dataset ID and revision here.
 
-The backbone currently accepts its own [prepared tensor manifest](../model/backbone/d2/SAMPLES.md).
-These audiovisual JSONL records require a future conversion step. Adding a
-`video` field alone does not make the existing D2 trainer consume visual inputs.
+The backbone also accepts its own [prepared tensor manifest](../model/backbone/d2/SAMPLES.md).
+The illustrative draft audiovisual JSONL records require a conversion step;
+they differ from the executable [paired-audio input schema](../docs/data-pipeline.md).
+Adding a `video` field alone does not make the paired-audio builder consume video.
