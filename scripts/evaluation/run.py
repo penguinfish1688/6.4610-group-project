@@ -12,12 +12,26 @@ from scripts.evaluation.report import (
 
 def run(args):
     bundle = args.bundle.resolve()
-    manifest_path = (args.manifest or bundle / "examples/manifest.json").resolve()
-    data_root = (args.data_root or bundle).resolve()
-    manifest = json.loads(manifest_path.read_text())
+    prepared_root = getattr(args, "prepared_dataset", None)
+    if prepared_root:
+        if args.manifest or args.data_root:
+            raise ValueError("--prepared-dataset cannot be combined with --manifest/--data-root")
+        from scripts.evaluation.prepared import inventory
+
+        data_root = prepared_root.resolve()
+        manifest_path = data_root / "manifest.json"
+        _, prepared_rows = inventory(data_root)
+        manifest = dict(cases=prepared_rows)
+    else:
+        manifest_path = (args.manifest or bundle / "examples/manifest.json").resolve()
+        data_root = (args.data_root or bundle).resolve()
+        manifest = json.loads(manifest_path.read_text())
     rows = select_rows(manifest, args.cases, args.limit)
     if len(set(args.conditions)) != len(args.conditions):
         raise ValueError("Duplicate conditions")
+    variant = getattr(args, "model", "finetuned")
+    if variant == "base-d2" and args.conditions != ["padding"]:
+        raise ValueError("Original D2 has no visual lane; use --model base-d2 --conditions padding")
     donors = donor_map(rows) if "mismatched" in args.conditions else {}
     cfg = json.loads((bundle / "inference-config.json").read_text())
     # The loader verifies input SHA256 and native prompts before any rollout.
@@ -29,7 +43,8 @@ def run(args):
                  donor_id=donors.get(row["name"]) if condition == "mismatched" else None)
             for row in rows for condition in args.conditions]
     identity = dict(
-        schema="d2_omni.evaluation.v1", bundle=str(bundle), data_root=str(data_root),
+        schema="d2_omni.evaluation.v2", bundle=str(bundle), data_root=str(data_root),
+        model=variant, input_mode="prepared_mel" if prepared_root else "waveform",
         manifest_sha256=digest(manifest_path), seed=cfg["seed"], plan=plan,
         config_sha256=digest(bundle / "inference-config.json"),
         checkpoint_manifest_sha256=digest(bundle / "finetuned/latest.json"),
@@ -41,11 +56,16 @@ def run(args):
     root = Path(__file__).resolve().parents[2]
     for name in ("scripts/evaluation/__main__.py", "scripts/evaluation/run.py",
                  "scripts/evaluation/report.py", "scripts/evaluation/inputs.py",
+                 "scripts/evaluation/prepared.py",
                  "scripts/infer_omni.py", "model/release_bundle.py", "model/int8_runtime.py",
                  "scripts/quantize_experts.py", "scripts/inference_checkpoint.py",
                  "model/backbone/qwen3-omni-D2/inference/session.py",
                  "model/backbone/qwen3-omni-D2/model/duplex.py"):
         identity["code_sha256"][name] = digest(root / name)
+    if prepared_root:
+        identity["split_catalog_sha256"] = {
+            split: digest(data_root / f"{split}.jsonl") for split in ("train", "probe")
+        }
     print(json.dumps(dict(rollouts=len(plan), plan=plan), indent=2), flush=True)
     if args.dry_run:
         return
@@ -55,11 +75,16 @@ def run(args):
     from scripts.evaluation.inputs import ablate_visual
     from scripts.infer_omni import run as infer
 
-    def load_cases(_config, tokenizer):
-        cases = select_cases(
-            bundle, tokenizer, manifest_path=manifest_path, data_root=data_root,
-            names={row["name"] for row in rows},
-        )
+    def load_cases(_config, processor):
+        if prepared_root:
+            from scripts.evaluation.prepared import select_cases as prepared_cases
+
+            cases = prepared_cases(data_root, rows, processor.tokenizer)
+        else:
+            cases = select_cases(
+                bundle, processor.tokenizer, manifest_path=manifest_path, data_root=data_root,
+                names={row["name"] for row in rows},
+            )
         indexed = {case["name"]: case for case in cases}
         expanded = []
         for item in plan:
@@ -84,6 +109,8 @@ def main():
     parser.add_argument("--bundle", type=Path, default=Path("weight/base_1030"))
     parser.add_argument("--manifest", type=Path, help="External manifest using the release case schema")
     parser.add_argument("--data-root", type=Path, help="Root for manifest input/video paths; default: bundle")
+    parser.add_argument("--prepared-dataset", type=Path, help="Downloaded step9000 training-data release")
+    parser.add_argument("--model", choices=("finetuned", "base-d2"), default="finetuned")
     parser.add_argument("--cases", nargs="+", help="AVQA case names; default: all AVQA cases")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))

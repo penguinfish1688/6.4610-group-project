@@ -54,7 +54,7 @@ def select_rows(manifest, names=None, limit=None):
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", name) or name in seen:
             raise ValueError(f"Unsafe or duplicate case name: {name}")
         seen.add(name)
-        if parse_choice(row["reference"]) is None:
+        if not row.get("reference_from_targets") and parse_choice(row["reference"]) is None:
             raise ValueError(f"Reference must begin with a choice letter: {name}")
     return rows
 
@@ -136,6 +136,7 @@ def report(output, results, planned):
             )
     summary = dict(
         planned=planned, completed=len(rows), complete=len(rows) == planned,
+        model_variants=sorted({result.get("model_variant", "finetuned") for result in results}),
         conditions=conditions, paired=paired, examples=rows,
         timing_note="Cached visual inputs; excludes model loading and vision encoding. "
                     "Active speech duration is not a speech-completion score.",

@@ -4,6 +4,12 @@ The runner evaluates prepared AVQA inputs with the released step-9,000 model.
 The bundled two AVQA cases are debugging examples, not a benchmark. InstructS2S
 is excluded. No training or live visual encoding is performed.
 
+The new [step-9000 development adapter](STEP9000.md) can evaluate the 128
+released AVQA probe clips directly from their cached environment mel and visual
+features, and compare the original D2 weights with the fine-tuned model. This
+uses `--prepared-dataset`; the commands and processing differences are documented
+in that guide.
+
 Implementation files are grouped under `scripts/evaluation/`; see the
 [scripts directory guide](../scripts/README.md). The package entry point is
 `python -m scripts.evaluation`. The earlier top-level `scripts.evaluate_omni`
