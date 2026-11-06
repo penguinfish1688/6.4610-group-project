@@ -1,0 +1,62 @@
+{
+  "d2_source": "weight/base_1030/base_d2",
+  "hf_home": ".cache/huggingface",
+  "output": "runs/retrain-step9000",
+  "prepared_root": "data/processed/step9000-release/prepared",
+  "world_size": 4,
+  "gpus_per_node": 4,
+  "max_frames": 1125,
+  "memory_frames": 1125,
+  "minimum_conversation_seconds": 720,
+  "control_offset_frames": 6,
+  "talker_codec_eos_weight": 5.0,
+  "avqa_training_samples": 192,
+  "avqa_probe_samples": 128,
+  "training_contract": "native_d2_transformer_xl_detached_memory",
+  "frozen_experts_int8": true,
+  "shard_frozen_expert_layers": {
+    "thinker": 8,
+    "talker": 20
+  },
+  "training_samples": 64,
+  "probe_samples": 4,
+  "max_updates": 9000,
+  "probe_every": 100,
+  "probe_chunks": 2,
+  "checkpoint_every": 250,
+  "checkpoint_retention": "latest_only",
+  "seed": 1337,
+  "cpu_threads_per_rank": 2,
+  "source_pattern": [
+    "instructs2s_dynamic",
+    "avqa",
+    "avqa",
+    "avqa",
+    "avqa",
+    "avqa",
+    "avqa",
+    "avqa",
+    "avqa",
+    "avqa"
+  ],
+  "allow_partial_source": true,
+  "source_disjoint_validation": true,
+  "validation_batches_per_rank": 1,
+  "vision": {
+    "fps": 1,
+    "height": 96,
+    "width": 128,
+    "tokens_per_image": 12,
+    "placeholder_seed": 1337,
+    "encoder_frozen": true,
+    "distillation": false
+  },
+  "slurm": {
+    "partition": "a6",
+    "nodes": 1,
+    "gpus": 4,
+    "time": "1-00:00:00"
+  },
+  "prepared_manifest": "data/processed/step9000-release/manifest.json",
+  "portable_runtime": true
+}

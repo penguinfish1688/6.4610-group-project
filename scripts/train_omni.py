@@ -113,6 +113,11 @@ def run(cfg):
         if any(not Path(row["path"]).is_file() for row in rows):
             raise FileNotFoundError("A checkpoint's prepared conversation is missing")
         log("prepared_data_reused", conversations=len(rows))
+    elif cfg.get("prepared_manifest"):
+        from scripts.prepared_dataset import load_prepared_manifest
+
+        rows = load_prepared_manifest(cfg["prepared_manifest"], cfg["source_pattern"])
+        log("prepared_dataset_loaded", conversations=len(rows))
     else:
         from scripts.prepare_native_data import prepare
         from scripts.prepare_avqa import ready, prepare_avqa

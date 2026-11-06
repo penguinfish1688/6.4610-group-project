@@ -1,0 +1,11 @@
+{
+  "repo_id": "penguinfish1688/D2-Omni-step9000-training-data",
+  "revision": "ff02ecd58bb2eea1e494832c8112dc0315ca20ae",
+  "public": true,
+  "verified_files": 100,
+  "verified_bytes": 6972724082,
+  "checkpoint_step": 9000,
+  "source_commit": "f09a8ca",
+  "prepared_files": 75,
+  "prepared_bytes": 6972228669
+}

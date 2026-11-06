@@ -27,6 +27,14 @@ MP4 includes synchronized input audio, generated speech, waveforms, and streamin
 text. InstructS2S speaks its full longer answer; AVQA remains one correct answer
 out of these two development examples.
 
+The exact [checkpoint-9,000 training dataset](https://huggingface.co/datasets/penguinfish1688/D2-Omni-step9000-training-data)
+contains 75 prepared files (6.97 GB), including the separate development split.
+Follow the [two-phase training recipe](data/releases/step9000/TRAINING.md) to
+train from the base D2 checkpoint, or use the [audio data pipeline](docs/data-pipeline.md)
+to turn your own paired audio and assistant transcripts into trainable tensors
+with streaming Mimi codec targets. Both paths use a portable manifest and avoid
+the private SLS source-data loaders.
+
 The [experimental, unfinished `base_1030` weight release](weight/base_1030/README.md)
 contains the base D2 model, our step-9,000 fine-tuned components, and the three
 demo inputs. Download from Hugging Face into **`weight/base_1030/`** with
