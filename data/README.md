@@ -5,7 +5,8 @@ Store downloaded media in `raw/`, assembled conversations in `processed/`, and
 cached teacher representations in `features/` (all ignored by Git).
 
 The exact [step-9,000 prepared corpus](https://huggingface.co/datasets/penguinfish1688/D2-Omni-step9000-training-data)
-is available on Hugging Face. See its [dataset card](releases/step9000/README.md)
+is available on Hugging Face; its verified revision is recorded in
+[hub.json](releases/step9000/hub.json). See its [dataset card](releases/step9000/README.md)
 and [training recipe](releases/step9000/TRAINING.md). For new paired audio files,
 use the [Mimi preprocessing pipeline](../docs/data-pipeline.md); it writes the
 portable `d2_omni.dataset.v1` manifest consumed by `scripts.train_omni`.
