@@ -87,3 +87,32 @@ def test_cached_stream_feeds_exact_incremental_mel_not_pcm():
     assert stream.state_summary()["samples_received"] == 2560
     with pytest.raises(ValueError, match="ticks"):
         stream.push_audio(torch.zeros(1280))
+
+
+def test_scene_mute_retains_question_vision_and_reference_without_mutating_case():
+    from scripts.evaluation.inputs import ablate_scene_audio, ablate_visual
+
+    visual = dict(vision_features=torch.randn(1, 12, 4),
+                  vision_mask=torch.ones(1, 12, dtype=torch.bool),
+                  vision_deepstack=torch.randn(3, 1, 12, 4))
+    mel = torch.randn(128, 100)
+    case = dict(environment_mel=mel, scene_audio_end_ms=160,
+                evaluation=dict(condition="scene_audio_muted"), visual=visual,
+                prompt_ids=(1, 2), reference="C. hail", audio=torch.zeros(16000))
+    muted = ablate_scene_audio(case, "scene_audio_muted")
+    torch.testing.assert_close(muted["environment_mel"][:, :18], torch.full((128, 18), -1.5))
+    torch.testing.assert_close(muted["environment_mel"][:, 18:], mel[:, 18:])
+    assert muted["environment_mel"].data_ptr() != mel.data_ptr()
+    assert muted["audio"] is case["audio"]
+    assert muted["prompt_ids"] == case["prompt_ids"]
+    assert muted["reference"] == case["reference"]
+    for name, tensor in ablate_visual(visual, "scene_audio_muted").items():
+        torch.testing.assert_close(tensor, visual[name])
+    assert ablate_scene_audio(case, "correct") is case
+
+
+def test_scene_mute_rejects_missing_timing_or_waveform_only_inputs():
+    from scripts.evaluation.inputs import ablate_scene_audio
+
+    with pytest.raises(ValueError, match="requires"):
+        ablate_scene_audio(dict(audio=torch.zeros(1280)), "scene_audio_muted")

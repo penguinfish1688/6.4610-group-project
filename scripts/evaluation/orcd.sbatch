@@ -13,7 +13,7 @@ set -euo pipefail
 # Submit from the repository root after: mkdir -p logs
 cd "${SLURM_SUBMIT_DIR:?Submit from the repository root}"
 module load miniforge
-source activate "$PWD/.venv"
+source activate "${D2_OMNI_ENV:-$PWD/.venv}"
 export HF_HOME="$PWD/.cache/huggingface-download"
 export HF_HUB_OFFLINE=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1
 srun python -u -m scripts.evaluation "$@"

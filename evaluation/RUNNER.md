@@ -10,6 +10,10 @@ features, and compare the original D2 weights with the fine-tuned model. This
 uses `--prepared-dataset`; the commands and processing differences are documented
 in that guide.
 
+An additional opt-in [scene-audio ablation](SCENE_AUDIO_ABLATION.md) preserves
+video and spoken questions while muting scene content. Use its separate-worktree
+instructions if existing evaluation jobs are still running.
+
 Implementation files are grouped under `scripts/evaluation/`; see the
 [scripts directory guide](../scripts/README.md). The package entry point is
 `python -m scripts.evaluation`. The earlier top-level `scripts.evaluate_omni`

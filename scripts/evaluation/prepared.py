@@ -101,6 +101,7 @@ def select_cases(root, records, tokenizer):
             visual=visual, prompt_ids=prompt_ids,
             prompt=tokenizer.decode(prompt_ids, skip_special_tokens=False),
             reference=reference, annotation=None, video_path=None,
+            scene_audio_end_ms=segment["end_ms"],
             reference_response_seconds=starts[0] * 0.08,
         ))
     return cases

@@ -7,7 +7,8 @@ import json
 from pathlib import Path
 import re
 
-CONDITIONS = ("correct", "padding", "mismatched")
+DEFAULT_CONDITIONS = ("correct", "padding", "mismatched")
+CONDITIONS = (*DEFAULT_CONDITIONS, "scene_audio_muted")
 
 
 def digest(path):
@@ -123,7 +124,7 @@ def report(output, results, planned):
             )
     indexed = {(row["case_id"], row["condition"]): row for row in rows}
     paired = {}
-    for condition in ("padding", "mismatched"):
+    for condition in ("padding", "mismatched", "scene_audio_muted"):
         pairs = [(row, indexed[(row["case_id"], condition)]) for row in rows
                  if row["condition"] == "correct" and (row["case_id"], condition) in indexed]
         if pairs:

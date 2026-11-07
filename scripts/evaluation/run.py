@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from scripts.evaluation.report import (
-    CONDITIONS, digest, donor_map, guard_run, report, select_rows,
+    CONDITIONS, DEFAULT_CONDITIONS, digest, donor_map, guard_run, report, select_rows,
 )
 
 
@@ -32,6 +32,8 @@ def run(args):
     variant = getattr(args, "model", "finetuned")
     if variant == "base-d2" and args.conditions != ["padding"]:
         raise ValueError("Original D2 has no visual lane; use --model base-d2 --conditions padding")
+    if "scene_audio_muted" in args.conditions and not prepared_root:
+        raise ValueError("--conditions scene_audio_muted requires --prepared-dataset")
     donors = donor_map(rows) if "mismatched" in args.conditions else {}
     cfg = json.loads((bundle / "inference-config.json").read_text())
     # The loader verifies input SHA256 and native prompts before any rollout.
@@ -72,7 +74,7 @@ def run(args):
     guard_run(args.output, identity)
     # GPU/D2 imports are deferred so --help and --dry-run need no model runtime.
     from model.release_bundle import select_cases
-    from scripts.evaluation.inputs import ablate_visual
+    from scripts.evaluation.inputs import ablate_scene_audio, ablate_visual
     from scripts.infer_omni import run as infer
 
     def load_cases(_config, processor):
@@ -90,13 +92,13 @@ def run(args):
         for item in plan:
             case = indexed[item["case_id"]]
             donor = indexed[item["donor_id"]] if item["donor_id"] else None
-            expanded.append(dict(
+            expanded.append(ablate_scene_audio(dict(
                 case, name=f"{case['name']}--{item['condition']}", evaluation=item,
                 visual=ablate_visual(case["visual"], item["condition"],
                                     donor["visual"] if donor else None),
                 video_path=(None if item["condition"] == "padding" else
                             donor["video_path"] if donor else case["video_path"]),
-            ))
+            ), item["condition"]))
         return expanded
 
     infer(args, case_loader=load_cases, resume=True,
@@ -113,7 +115,7 @@ def main():
     parser.add_argument("--model", choices=("finetuned", "base-d2"), default="finetuned")
     parser.add_argument("--cases", nargs="+", help="AVQA case names; default: all AVQA cases")
     parser.add_argument("--limit", type=int)
-    parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))
+    parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(DEFAULT_CONDITIONS))
     parser.add_argument("--output", type=Path, default=Path("runs/avqa-evaluation"))
     parser.add_argument("--dry-run", action="store_true", help="Preview the plan without loading the model")
     run(parser.parse_args())
